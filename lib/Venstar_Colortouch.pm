@@ -9,22 +9,30 @@ use JSON::XS;
 use Data::Dumper;
 
 # Venstar::Colortouch
-# $stat_upper        = new Venstar_Colortouch('192.168.0.100');
+# $stat_upper         = new Venstar_Colortouch('192.168.0.100');
 #
-# $stat_upper_temp   = new Venstar_Colortouch_Temp($stat_upper);
-# $stat_upper_fan    = new Venstar_Colortouch_Fan($stat_upper);
-# $stat_upper_hum    = new Venstar_Colortouch_Humidity($stat_upper);
-# $stat_upper_hum_sp = new Venstar_Colortouch_Humidity_sp($stat_upper);
-# $stat_upper_sched  = new Venstar_Colortouch_Sched($stat_upper);
+# $stat_upper_mode    = new Venstar_Colortouch_Mode($stat_upper);
+# $stat_upper_temp    = new Venstar_Colortouch_Temp($stat_upper);
+# $stat_upper_heat_sp = new Venstar_Colortouch_Heat_sp($stat_upper);
+# $stat_upper_cool_sp = new Venstar_Colortouch_Cool_sp($stat_upper);
+# $stat_upper_fan     = new Venstar_Colortouch_Fan($stat_upper);
+# $stat_upper_hum     = new Venstar_Colortouch_Humidity($stat_upper);
+# $stat_upper_hum_sp  = new Venstar_Colortouch_Humidity_sp($stat_upper);
+# $stat_upper_sched   = new Venstar_Colortouch_Schedule($stat_upper);
 # $stat_upper_comm	 = new Venstar_Colortouch_Comm($stat_upper);
 
 # v1.1 - added in schedule and humidity control.
 # v1.2 - added communication tracker object & timeout control
 # v1.3 - added check for timer defined
+# v1.4 - support for API v5. It seems like v5
+#	"hum_setpoint": is the current humidity and
+#   "dehum_setpoint": is the humidity setpoint
+#	"hum" doesn't return anything anymore.
 
 # Notes:
 #  - Best to use firmware at least 3.14 released Nov 2014. This fixes issues with both
 #    schedule and humidity/dehumidify control.
+#  - 4.08 is API5, seems to have better wifi, but humidity control is messed up.
 
 #todo
 # - temp setpoint bounds checking
@@ -51,17 +59,17 @@ $rest{control}  = "/control";
 $rest{settings} = "/settings";
 
 sub new {
-    my ( $class, $host, $poll ) = @_;
+    my ( $class, $host, $poll, $debug ) = @_;
     my $self = {};
     bless $self, $class;
     $self->{data}                 = undef;
+    $self->{api_ver} 			  = 0;
     $self->{child_object}         = undef;
     $self->{config}->{cache_time} = 30;      #TODO fix cache timeouts
     $self->{config}->{cache_time} = $::config_params{venstar_config_cache_time}
       if defined $::config_params{venstar_config_cache_time};
     $self->{config}->{tz} =
-      $::config_params{time_zone}
-      ;    #TODO Need to figure out DST for print runtimes
+      $::config_params{time_zone}; #TODO Need to figure out DST for print runtimes
     $self->{config}->{poll_seconds} = 60;
     $self->{config}->{poll_seconds} = $poll if ($poll);
     $self->{config}->{poll_seconds} = 1
@@ -70,6 +78,9 @@ sub new {
     $self->{data}->{retry} = 0;
     $self->{host}          = $host;
     $self->{debug}         = 0;
+    $self->{debug} = $debug if ($debug);
+    $self->{debug} = 0
+      if ( $self->{debug} < 0 );
     $self->{loglevel}      = 1;
     $self->{status}        = "";
     $self->{timeout}       = 15;      #300;
@@ -107,11 +118,14 @@ sub _init {
     my ( $isSuccessResponse1, $stat ) = $self->_get_JSON_data('api');
 
     if ($isSuccessResponse1) {
+		$self->{api_ver} = $stat->{api_ver};		
 
-        if ( ( $stat->{api_ver} > 3 ) and ( $stat->{type} eq "residential" ) ) {
+        if ( ( $stat->{api_ver} > 3 ) and ( $stat->{type} eq "residential" or $stat->{type} eq "commercial" ) ) {
+
+            $self->{type} = $stat->{type};
 
             main::print_log(
-                "[Venstar Colortouch] Residental Venstar ColorTouch found with api level $stat->{api_ver}"
+                "[Venstar Colortouch] $stat->{type} Venstar ColorTouch found with api level $stat->{api_ver}"
             );
             if ( $self->poll() ) {
                 main::print_log( "[Venstar Colortouch:"
@@ -129,8 +143,8 @@ sub _init {
                 $self->{previous}->{sensors}->{sensors}[0]->{hum} =
                   $self->{data}->{sensors}->{sensors}[0]->{hum};
                 ## set states based on available mode
-                $self->print_info();
                 $self->set( $state[ $self->{data}->{info}->{state} ], 'poll' );
+                $self->print_info();
 
             }
             else {
@@ -306,17 +320,46 @@ sub _push_JSON_data {
     if ( $type eq 'settings' ) {
 
         #tempunits=0&away=0&schedule=0&hum_setpoint=0&dehum_setpoint=0
+		# with v4.08 firmware, hum and dehum setpoints need to be at least 4 % points different
 
-        my ( $newunits, $newaway, $newsched, $newhumsp, $newdehumsp );
+        my ( $isSuccessResponse, $thedata ) = $self->_get_setting_params;
+        my %info = %$thedata;
+        my %cinfo = %$thedata;
+        my @changearr;
+
+        while ($params =~ /(\w+)=(\d+)/g) {
+            print "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] _push_JSON_data match: $1 = $2\n";
+            $info{$1} = $2;
+            if ($info{$1} ne $cinfo{$1}) {
+                main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Changing $1 from $cinfo{$1} to $info{$1}" );
+                push(@changearr, "$1=$info{$1}");
+            }
+        }
+
+        $cmd = join ('&', @changearr);
+        main::print_log( "Sending Settings command $cmd to " . $self->{host} ) if $cmd
+          ;    # if $self->{debug};
+
+=begin
+        my ( $newunits, $newaway, $newholiday, $newsched, $newhumsp, $newdehumsp );
         my ($units) = $params =~ /tempunits=(\d+)/;
         my ($away)  = $params =~ /away=(\d+)/;
+        my ($holiday)  = $params =~ /holiday=(\d+)/;
+        my ($override)  = $params =~ /override=(\d+)/;
+        my ($overridetime)  = $params =~ /overridetime=(\d+)/;
+        my ($forceunocc)  = $params =~ /forceunocc=(\d+)/;
         my ($sched) = $params =~ /schedule=(\d+)/;
         my $hum;
         my ($humsp)   = $params =~ /hum_setpoint=(\d+)/;
         my ($dehumsp) = $params =~ /dehum_setpoint=(\d+)/
           ;               #need to add in dehumidifier stuff at some point
+		my $humidity_change = 0;
 
-        my ( $isSuccessResponse, $cunits, $caway, $csched, $chum, $chumsp,
+        my ( $isSuccessResponse, $cunits, $caway, $choliday, $coverride, $coverridetime, $cforceunocc, $csched, $chum, $chumsp,
             $cdehumsp )
           = $self->_get_setting_params;
 
@@ -325,6 +368,10 @@ sub _push_JSON_data {
         $units = 0 if ( ( $units eq "F" ) or ( $units eq "f" ) );
 
         $away    = $caway    if ( not defined $away );
+        $holiday    = $choliday    if ( not defined $holiday );
+        $override    = $coverride    if ( not defined $override );
+        $overridetime    = $coverridetime    if ( not defined $overridetime );
+        $forceunocc    = $cforceunocc    if ( not defined $forceunocc );
         $sched   = $csched   if ( not defined $sched );
         $hum     = $chum     if ( not defined $hum );
         $humsp   = $chumsp   if ( not defined $humsp );
@@ -350,6 +397,47 @@ sub _push_JSON_data {
             $newaway = $caway;
         }
 
+        if ( $choliday ne $holiday ) {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Changing Away from $choliday to $holiday" );
+            $newholiday = $holiday;
+        }
+        else {
+            $newholiday = $choliday;
+        }
+
+        if ( $caway ne $away ) {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Changing Away from $caway to $away" );
+            $newaway = $away;
+        }
+        else {
+            $newaway = $caway;
+        }
+
+        if ( $caway ne $away ) {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Changing Away from $caway to $away" );
+            $newaway = $away;
+        }
+        else {
+            $newaway = $caway;
+        }
+
+        if ( $caway ne $away ) {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Changing Away from $caway to $away" );
+            $newaway = $away;
+        }
+        else {
+            $newaway = $caway;
+        }
+
+
         if ( $csched ne $sched ) {
             main::print_log( "[Venstar Colortouch:"
                   . $self->{data}->{name}
@@ -363,8 +451,11 @@ sub _push_JSON_data {
 
         if ( $chumsp ne $humsp ) {
             print
-              "[Venstar Colortouch] Changing Humidity Setpoint from $chumsp to $humsp\n";
+              "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+             	  . "] Changing Humidity Setpoint from $chumsp to $humsp\n";
             $newhumsp = $humsp;
+            $humidity_change = 1;
         }
         else {
             $newhumsp = $chumsp;
@@ -372,18 +463,26 @@ sub _push_JSON_data {
 
         if ( $cdehumsp ne $dehumsp ) {
             print
-              "[Venstar Colortouch] Changing Dehumidity Setpoint from $cdehumsp to $dehumsp\n";
+              "[Venstar Colortouch:"
+              	. $self->{data}->{name}
+              	. "] Changing (De)humidity Setpoint from $cdehumsp to $dehumsp\n";
             $newdehumsp = $dehumsp;
         }
         else {
             $newdehumsp = $cdehumsp;
         }
 
-        $cmd =
-          "tempunits=$newunits&away=$newaway&schedule=$newsched&hum_setpoint=$newhumsp&dehum_setpoint=$newdehumsp";
-        main::print_log( "Sending Settings command $cmd to " . $self->{host} )
-          if $self->{debug};
-
+		# v4.08 needs 6 % point delta on humidity and dehumidity. 
+		# if humidify is more then dehumidify, then set dehumidify to 6 + humidity
+		$newdehumsp = $newhumsp + 6 if ((($newhumsp >= $newdehumsp) or (($newdehumsp - $newhumsp) < 6)));
+		if ($self->{api_ver} >=5) {
+        	$cmd = "tempunits=$newunits&away=$newaway&schedule=$newsched"; #&dehum_setpoint=$newhumsp&hum_setpoint=" . ($newhumsp + 1);	
+        	$cmd = "hum_setpoint=$newhumsp&dehum_setpoint=$newdehumsp" if ($humidity_change);
+		} else {
+        	$cmd = "tempunits=$newunits&away=$newaway&schedule=$newsched&hum_setpoint=$newhumsp&dehum_setpoint=$newdehumsp";
+        }
+        main::print_log( "Sending Settings command [$cmd] to " . $self->{host} ) if $self->{debug};
+=cut
     }
     elsif ( $type eq 'control' ) {
 
@@ -429,7 +528,7 @@ sub _push_JSON_data {
         if ( $cfan ne $fan ) {
             main::print_log( "[Venstar Colortouch:"
                   . $self->{data}->{name}
-                  . "] Changing fan from $fanstate[$cfan] to $fanstate[$fan]" );
+                  . "] Changing fan from $fan[$cfan] to $fan[$fan]" );
             $newfan = $fan;
         }
         else {
@@ -486,8 +585,7 @@ sub _push_JSON_data {
 
         $cmd =
           "mode=$newmode&fan=$newfan&heattemp=$newheatsp&cooltemp=$newcoolsp";
-        main::print_log( "Sending Control command $cmd to " . $self->{host} )
-          ;    # if $self->{debug};
+        main::print_log( "Sending Control command $cmd to " . $self->{host} ) if $self->{debug};
 
     }
     else {
@@ -579,9 +677,9 @@ sub _get_control_params {
 sub _get_setting_params {
     my ($self) = @_;
     my ( $isSuccessResponse, $info ) = $self->_get_JSON_data('info');
-    return ( $isSuccessResponse, $info->{tempunits}, $info->{away},
-        $info->{schedule}, $info->{hum}, $info->{hum_setpoint},
-        $info->{dehum_setpoint} );
+    return ( $isSuccessResponse, $info); #->{tempunits}, $info->{away},
+#        $info->{schedule}, $info->{hum}, $info->{hum_setpoint},
+#        $info->{dehum_setpoint} );
 }
 
 sub stop_timer {
@@ -654,7 +752,7 @@ sub print_info {
           . "] Device "
           . $self->{data}->{name} . " is "
           . $type
-          . " Thermostat" );
+          . " Thermostat with API level " . $self->{api_ver} );
 
     main::print_log( "[Venstar Colortouch:"
           . $self->{data}->{name}
@@ -701,7 +799,7 @@ sub print_info {
           . $self->{data}->{name}
           . "] Current Humidity:"
           . $self->{data}->{info}->{hum}
-          . "%" );
+          . "%" ) if ($self->{api_ver} < 5);
 
     main::print_log( "[Venstar Colortouch:"
           . $self->{data}->{name}
@@ -724,18 +822,20 @@ sub print_info {
           . "$unit\t"
           . $self->{data}->{info}->{cooltempmax}
           . "$unit" );
+    my $hum_value = $self->{data}->{info}->{hum_setpoint};
+    $hum_value = $self->{data}->{info}->{dehum_setpoint} if ($self->{api_ver} >= 5);
     main::print_log( "[Venstar Colortouch:"
           . $self->{data}->{name}
           . "] Humidity:\t"
-          . $self->{data}->{info}->{hum_setpoint}
+          . $hum_value
           . "%" )
-      unless ( $self->{data}->{info}->{hum_setpoint} == 99 );
+      unless ( $hum_value == 99 );
     main::print_log( "[Venstar Colortouch:"
           . $self->{data}->{name}
           . "] Dehumidity:"
           . $self->{data}->{info}->{dehum_setpoint}
           . "%" )
-      unless ( $self->{data}->{info}->{dehum_setpoint} == 99 );
+      unless (( $self->{data}->{info}->{dehum_setpoint} == 99 ) or ($self->{api_ver} >= 5));
 
     main::print_log( "[Venstar Colortouch:"
           . $self->{data}->{name}
@@ -840,7 +940,7 @@ sub process_data {
         ) if ( $self->{loglevel} );
         $self->{previous}->{info}->{fan} = $self->{data}->{info}->{fan};
         if ( defined $self->{child_object}->{fanstate} ) {
-            main::print_log "Child object found. Updating..."
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Fan Child object found. Updating..."
               if ( $self->{loglevel} );
             $self->{child_object}->{fanstate}
               ->set_mode( $fan[ $self->{data}->{info}->{fan} ] );
@@ -857,7 +957,7 @@ sub process_data {
         $self->{previous}->{info}->{fanstate} =
           $self->{data}->{info}->{fanstate};
         if ( defined $self->{child_object}->{fanstate} ) {
-            main::print_log "Child object found. Updating..."
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Fanstate Child object found. Updating..."
               if ( $self->{loglevel} );
             $self->{child_object}->{fanstate}
               ->set( $fanstate[ $self->{data}->{info}->{fanstate} ], 'poll' );
@@ -870,6 +970,14 @@ sub process_data {
               . "] Mode changed from $mode[$self->{previous}->{info}->{mode}] to $mode[$self->{data}->{info}->{mode}]"
         ) if ( $self->{loglevel} );
         $self->{previous}->{info}->{mode} = $self->{data}->{info}->{mode};
+        if ( defined $self->{child_object}->{mode} ) {
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Mode Child object found. Updating..."
+              if ( $self->{loglevel} );
+            $self->{child_object}->{mode}
+              ->set( $mode[$self->{data}->{info}->{mode}] );
+        }
+
+
     }
 
     if ( $self->{previous}->{info}->{state} != $self->{data}->{info}->{state} )
@@ -899,7 +1007,7 @@ sub process_data {
         $self->{previous}->{info}->{schedule} =
           $self->{data}->{info}->{schedule};
         if ( defined $self->{child_object}->{sched} ) {
-            main::print_log "Child object found. Updating..."
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Schedule Child object found. Updating..."
               if ( $self->{loglevel} );
             $self->{child_object}->{sched}
               ->set( $sched[ $self->{data}->{info}->{schedule} ], 'poll' );
@@ -917,15 +1025,57 @@ sub process_data {
           $self->{data}->{info}->{schedulepart};
     }
 
-    if ( $self->{previous}->{info}->{away} != $self->{data}->{info}->{away} ) {
+    if ( $self->{type} eq "residential" and $self->{previous}->{info}->{away} != $self->{data}->{info}->{away} ) {
         my $away = "home mode";
         $away = "away mode" if ( $self->{data}->{info}->{away} );
         main::print_log( "[Venstar Colortouch:"
               . $self->{data}->{name}
-              . "] Thermostat occupency changed to"
+              . "] Thermostat occupancy changed to"
               . $away )
           if ( $self->{loglevel} );
         $self->{previous}->{info}->{away} = $self->{data}->{info}->{away};
+    }
+
+    if ( $self->{type} eq "commercial" and $self->{previous}->{info}->{holiday} != $self->{data}->{info}->{holiday} ) {
+        my $holiday = "observing holiday";
+        $holiday = "no holiday" if ( $self->{data}->{info}->{holiday} );
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Thermostat holiday changed to"
+              . $holiday )
+          if ( $self->{loglevel} );
+        $self->{previous}->{info}->{holiday} = $self->{data}->{info}->{holiday};
+    }
+
+    if ( $self->{type} eq "commercial" and $self->{previous}->{info}->{override} != $self->{data}->{info}->{override} ) {
+        my $override = "off";
+        $override = "on" if ( $self->{data}->{info}->{override} );
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Thermostat override changed to"
+              . $override )
+          if ( $self->{loglevel} );
+        $self->{previous}->{info}->{override} = $self->{data}->{info}->{override};
+    }
+
+    if ( $self->{type} eq "commercial" and $self->{previous}->{info}->{overridetime} != $self->{data}->{info}->{overridetime} ) {
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Thermostat overridetime changed to"
+              . $self->{data}->{info}->{overridetime} )
+          if ( $self->{loglevel} );
+        $self->{previous}->{info}->{overridetime} = $self->{data}->{info}->{overridetime};
+    }
+
+    if ( $self->{type} eq "commercial" and $self->{previous}->{info}->{forceunocc} != $self->{data}->{info}->{forceunocc} ) {
+        my $forceunocc = "off";
+        $forceunocc = "on" if ( $self->{data}->{info}->{forceunocc} );
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Thermostat forceunocc changed to"
+              . $forceunocc )
+          if ( $self->{loglevel} );
+        $self->{previous}->{info}->{forceunocc} = $self->{data}->{info}->{forceunocc};
     }
 
     if ( $self->{previous}->{info}->{spacetemp} !=
@@ -938,7 +1088,7 @@ sub process_data {
         $self->{previous}->{info}->{spacetemp} =
           $self->{data}->{info}->{spacetemp};
         if ( defined $self->{child_object}->{temp} ) {
-            main::print_log "Child object found. Updating..."
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Temperature Sensor Child object found. Updating..."
               if ( $self->{loglevel} );
             $self->{child_object}->{temp}
               ->set( $self->{data}->{info}->{spacetemp}, 'poll' );
@@ -954,6 +1104,12 @@ sub process_data {
         ) if ( $self->{loglevel} );
         $self->{previous}->{info}->{heattemp} =
           $self->{data}->{info}->{heattemp};
+        if ( defined $self->{child_object}->{heat_sp} ) {
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Heat Setpoint Child object found. Updating..."
+              if ( $self->{loglevel} );
+            $self->{child_object}->{heat_sp}
+              ->set( $self->{data}->{info}->{heattemp}, 'poll' );
+        }
     }
 
     if ( $self->{previous}->{info}->{heattempmin} !=
@@ -987,6 +1143,12 @@ sub process_data {
         ) if ( $self->{loglevel} );
         $self->{previous}->{info}->{cooltemp} =
           $self->{data}->{info}->{cooltemp};
+        if ( defined $self->{child_object}->{cool_sp} ) {
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Cooling Setpoint Child object found. Updating..."
+              if ( $self->{loglevel} );
+            $self->{child_object}->{cool_sp}
+              ->set( $self->{data}->{info}->{cooltemp}, 'poll' );
+        }
     }
 
     if ( $self->{previous}->{info}->{cooltempmin} !=
@@ -1011,38 +1173,33 @@ sub process_data {
           $self->{data}->{info}->{cooltempmax};
     }
 
-    if ( $self->{previous}->{info}->{dehum_setpoint} !=
-        $self->{data}->{info}->{dehum_setpoint} )
-    {
-        main::print_log( "[Venstar Colortouch:"
-              . $self->{data}->{name}
-              . "] Thermostat dehumidity setpoint changed from $self->{previous}->{info}->{dehum_setpoint} to $self->{data}->{info}->{dehum_setpoint}"
-        ) if ( $self->{loglevel} );
-        $self->{previous}->{info}->{dehum_setpoint} =
-          $self->{data}->{info}->{dehum_setpoint};
-        if ( defined $self->{child_object}->{dehum_sp} ) {
-            main::print_log "Child object found. Updating..."
-              if ( $self->{loglevel} );
-            $self->{child_object}->{dehum_sp}
-              ->set( $self->{data}->{info}->{dehum_setpoint}, 'poll' );
+    if ( $self->{previous}->{info}->{dehum_setpoint} != $self->{data}->{info}->{dehum_setpoint} ) {
+    	if ($self->{api_ver} >=5) { #v5, dehum_setpoint is now the humidity setpoint?
+        	main::print_log( "[Venstar Colortouch:" . $self->{data}->{name} . "] Thermostat humidity setpoint changed from $self->{previous}->{info}->{dehum_setpoint} to $self->{data}->{info}->{dehum_setpoint}") if ( $self->{loglevel} );
+        	$self->{previous}->{info}->{dehum_setpoint} = $self->{data}->{info}->{dehum_setpoint};
+        	if ( defined $self->{child_object}->{hum_sp} ) {
+            	main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Humidify Child object found. Updating..." if ( $self->{loglevel} );
+            	$self->{child_object}->{hum_sp}->set( $self->{data}->{info}->{dehum_setpoint}, 'poll' );
+            }
+        } else {
+        	main::print_log( "[Venstar Colortouch:" . $self->{data}->{name} . "] Thermostat dehumidity setpoint changed from $self->{previous}->{info}->{dehum_setpoint} to $self->{data}->{info}->{dehum_setpoint}") if ( $self->{loglevel} );
+        	$self->{previous}->{info}->{dehum_setpoint} = $self->{data}->{info}->{dehum_setpoint};
+        	if ( defined $self->{child_object}->{dehum_sp} ) {
+            	main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Dehumidify Child object found. Updating..." if ( $self->{loglevel} );
+            	$self->{child_object}->{dehum_sp}->set( $self->{data}->{info}->{dehum_setpoint}, 'poll' );
+            }
         }
     }
 
-    if ( $self->{previous}->{info}->{hum_setpoint} !=
-        $self->{data}->{info}->{hum_setpoint} )
-    {
-        main::print_log( "[Venstar Colortouch:"
-              . $self->{data}->{name}
-              . "] Thermostat humidity setpoint changed from $self->{previous}->{info}->{hum_setpoint} to $self->{data}->{info}->{hum_setpoint}"
-        ) if ( $self->{loglevel} );
-        $self->{previous}->{info}->{hum_setpoint} =
-          $self->{data}->{info}->{hum_setpoint};
-        if ( defined $self->{child_object}->{hum_sp} ) {
-            main::print_log "Child object found. Updating..."
-              if ( $self->{loglevel} );
-            $self->{child_object}->{hum_sp}
-              ->set( $self->{data}->{info}->{hum_setpoint}, 'poll' );
-        }
+    if ( $self->{previous}->{info}->{hum_setpoint} != $self->{data}->{info}->{hum_setpoint} ) {
+    	if ($self->{api_ver} < 5) { #v5, hum_setpoint is now the humidity sensor?
+        	main::print_log( "[Venstar Colortouch:" . $self->{data}->{name} . "] Thermostat humidity setpoint changed from $self->{previous}->{info}->{hum_setpoint} to $self->{data}->{info}->{hum_setpoint}") if ( $self->{loglevel} );
+        	$self->{previous}->{info}->{hum_setpoint} = $self->{data}->{info}->{hum_setpoint};
+        	if ( defined $self->{child_object}->{hum_sp} ) {
+            	main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Humidify Child object found. Updating..." if ( $self->{loglevel} );
+           		$self->{child_object}->{hum_sp} ->set( $self->{data}->{info}->{hum_setpoint}, 'poll' );
+       	 	}
+       	 }
     }
 
     #if ($self->{previous}->{info}->{hum} != $self->{data}->{info}->{hum}) {
@@ -1071,7 +1228,7 @@ sub process_data {
         $self->{previous}->{sensors}->{sensors}[0]->{hum} =
           $self->{data}->{sensors}->{sensors}[0]->{hum};
         if ( defined $self->{child_object}->{hum} ) {
-            main::print_log "Child object found. Updating..."
+            main::print_log "[Venstar Colortouch:" . $self->{data}->{name} . "] Humidity Sensor Child object found. Updating..."
               if ( $self->{loglevel} );
             $self->{child_object}->{hum}
               ->set( $self->{data}->{sensors}->{sensors}[0]->{hum}, 'poll' );
@@ -1108,6 +1265,12 @@ sub print_runtimes {
 
 #------------
 # User access methods
+
+sub get_apiver {
+	my ($self) = @_;
+	
+	return ($self->{api_ver});
+}
 
 sub get_mode {
     my ($self) = @_;
@@ -1182,11 +1345,14 @@ sub get_sp_cool {
 
 sub get_sp_hum {
     my ($self) = @_;
-    return ( $self->{data}->{info}->{hum_setpoint} );
+    my $value =  $self->{data}->{info}->{hum_setpoint};
+    $value =  $self->{data}->{info}->{dehum_setpoint} if ($self->{api_ver} >= 5);
+    return ( $value );
 }
 
 sub get_sp_dehum {
     my ($self) = @_;
+    main::print_log("[Venstar_Colortouch]: WARNING, api v5 humidity settings are questionable.") if ($self->{api_ver} >= 5);
     return ( $self->{data}->{info}->{dehum_setpoint} );
 
 }
@@ -1269,6 +1435,11 @@ sub get_mode_humid {
 
     return $value;
 
+}
+
+sub get_debug {
+    my ($self) = @_;
+    return $self->{debug};
 }
 
 #------------
@@ -1462,9 +1633,175 @@ sub set_mode {
 }
 
 sub set_away {
+    my ( $self, $value ) = @_;
+    return unless $self->{type} eq "residential";
+    my $num;
+    if ( lc $value eq "off" ) {
+        $num = 0;
+    }
+    elsif ( lc $value eq lc "on" ) {
+        $num = 1;
+    }
+    else {
+        main::print_log( "Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error, unknown away mode $value" );
+        return ('0');
+    }
+    my ( $isSuccessResponse, $status ) =
+      $self->_push_JSON_data( 'control', "away=$num" );
+    if ($isSuccessResponse) {
+        if ( $status eq "success" ) {
+            return (1);
+        }
+        else {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Error. Could not set away to $num" );
+            return (0);
+        }
+    }
+    else {
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error. Could not send data to Thermostat" );
+        return (0);
+    }
+}
 
-    #($isSuccessResponse3,$status) = push_JSON_data($host,'settings','away=0&schedule=1');
+sub set_holiday {
+    my ( $self, $value ) = @_;
+    return unless $self->{type} eq "commercial";
+    my $num;
+    if ( lc $value eq "off" ) {
+        $num = 0;
+    }
+    elsif ( lc $value eq lc "on" ) {
+        $num = 1;
+    }
+    else {
+        main::print_log( "Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error, unknown holiday $value" );
+        return ('0');
+    }
+    my ( $isSuccessResponse, $status ) =
+      $self->_push_JSON_data( 'settings', "holiday=$num" );
+    if ($isSuccessResponse) {
+        if ( $status eq "success" ) {
+            return (1);
+        }
+        else {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Error. Could not set holiday to $num" );
+            return (0);
+        }
+    }
+    else {
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error. Could not send data to Thermostat" );
+        return (0);
+    }
+}
 
+sub set_override {
+    my ( $self, $value ) = @_;
+    return unless $self->{type} eq "commercial";
+    my $num;
+    if ( lc $value eq "off" ) {
+        $num = 0;
+    }
+    elsif ( lc $value eq lc "on" ) {
+        $num = 1;
+    }
+    else {
+        main::print_log( "Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error, unknown override $value" );
+        return ('0');
+    }
+    my ( $isSuccessResponse, $status ) =
+      $self->_push_JSON_data( 'settings', "override=$num" );
+    if ($isSuccessResponse) {
+        if ( $status eq "success" ) {
+            return (1);
+        }
+        else {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Error. Could not set override to $num" );
+            return (0);
+        }
+    }
+    else {
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error. Could not send data to Thermostat" );
+        return (0);
+    }
+}
+
+sub set_overridetime {
+    my ( $self, $value ) = @_;
+    return unless $self->{type} eq "commercial";
+    my ( $isSuccessResponse, $status ) =
+      $self->_push_JSON_data( 'settings', "overridetime=$value" );
+    if ($isSuccessResponse) {
+        if ( $status eq "success" ) {
+            return (1);
+        }
+        else {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Error. Could not set overridetime to $value" );
+            return (0);
+        }
+    }
+    else {
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error. Could not send data to Thermostat" );
+        return (0);
+    }
+}
+
+sub set_forceunocc {
+    my ( $self, $value ) = @_;
+    return unless $self->{type} eq "commercial";
+    my $num;
+    if ( lc $value eq "off" ) {
+        $num = 0;
+    }
+    elsif ( lc $value eq lc "on" ) {
+        $num = 1;
+    }
+    else {
+        main::print_log( "Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error, unknown forceunocc mode $value" );
+        return ('0');
+    }
+    my ( $isSuccessResponse, $status ) =
+      $self->_push_JSON_data( 'settings', "forceunocc=$num" );
+    if ($isSuccessResponse) {
+        if ( $status eq "success" ) {
+            return (1);
+        }
+        else {
+            main::print_log( "[Venstar Colortouch:"
+                  . $self->{data}->{name}
+                  . "] Error. Could not set forceunocc to $num" );
+            return (0);
+        }
+    }
+    else {
+        main::print_log( "[Venstar Colortouch:"
+              . $self->{data}->{name}
+              . "] Error. Could not send data to Thermostat" );
+        return (0);
+    }
 }
 
 sub set_fan {
@@ -1509,6 +1846,13 @@ sub set_units {
 
     #($isSuccessResponse3,$status) = push_JSON_data($host,'settings','away=0&schedule=1');
 
+}
+
+sub set_debug {
+    my ( $self, $debug ) = @_;
+    $self->{debug} = $debug if ($debug);
+    $self->{debug} = 0
+      if ( $self->{debug} < 0 );
 }
 
 sub set {
@@ -1722,6 +2066,114 @@ sub set {
 
     if ( $p_setby eq 'poll' ) {
         $self->SUPER::set($p_state);
+    }
+}
+
+package Venstar_Colortouch_Mode;
+
+@Venstar_Colortouch_Mode::ISA = ('Generic_Item');
+
+sub new {
+    my ( $class, $object ) = @_;
+
+    my $self = {};
+    bless $self, $class;
+
+    $$self{master_object} = $object;
+
+    $object->register( $self, 'mode' );
+    $self->set( $object->get_mode, 'poll' );
+    return $self;
+
+}
+
+sub set {
+    my ( $self, $p_state, $p_setby ) = @_;
+
+    if ( $p_setby eq 'poll' ) {
+        $self->SUPER::set($p_state);
+    }
+    else {
+        if (  ( lc $p_state eq "cooling" ) or ( lc $p_state eq "heating" ) or ( lc $p_state eq "cool" ) or ( lc $p_state eq "heat" ) or ( lc $p_state eq "auto" ) or ( lc $p_state eq "off" ) ) {
+            $$self{master_object}->set_mode($p_state);
+        }
+        else {
+            main::print_log(
+                "[Venstar Colortouch Mode] Error. Unknown set state $p_state"
+            );
+        }
+    }
+}
+
+package Venstar_Colortouch_Heat_sp;
+
+@Venstar_Colortouch_Heat_sp::ISA = ('Generic_Item');
+
+sub new {
+    my ( $class, $object ) = @_;
+
+    my $self = {};
+    bless $self, $class;
+
+    $$self{master_object} = $object;
+
+    $object->register( $self, 'heat_sp' );
+    $self->set( $object->get_sp_heat, 'poll' );
+    return $self;
+
+}
+
+sub set {
+    my ( $self, $p_state, $p_setby ) = @_;
+
+    if ( $p_setby eq 'poll' ) {
+        $self->SUPER::set($p_state);
+    }
+    else {
+        if ( ( $p_state >= 0 ) and ( $p_state <= 98 ) ) {
+            $$self{master_object}->set_heat_sp($p_state);
+        }
+        else {
+            main::print_log(
+                "[Venstar Colortouch Heat_SP] Error. Unknown set state $p_state"
+            );
+        }
+    }
+}
+
+package Venstar_Colortouch_Cool_sp;
+
+@Venstar_Colortouch_Cool_sp::ISA = ('Generic_Item');
+
+sub new {
+    my ( $class, $object ) = @_;
+
+    my $self = {};
+    bless $self, $class;
+
+    $$self{master_object} = $object;
+
+    $object->register( $self, 'cool_sp' );
+    $self->set( $object->get_sp_cool, 'poll' );
+    return $self;
+
+}
+
+sub set {
+    my ( $self, $p_state, $p_setby ) = @_;
+
+    if ( $p_setby eq 'poll' ) {
+        $self->SUPER::set($p_state);
+    }
+    else {
+        if ( ( $p_state >= 0 ) and ( $p_state <= 98 ) ) {
+            $$self{master_object}->set_cool_sp($p_state);
+        }
+        else {
+            main::print_log(
+                "[Venstar Colortouch Cool_SP] Error. Unknown set state $p_state"
+            );
+        }
     }
 }
 
