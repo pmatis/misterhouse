@@ -56,20 +56,20 @@ TEST:
 
 SECURE IT:
 
-				   !!!!!!!! WARNING !!!!!!!!
+           !!!!!!!! WARNING !!!!!!!!
 
-		You can stop and leave this in place if you'll ONLY use Wi-Fi.
-		tasker_link.pl may be called directly, but I STRONGLY recommend
-		placing tasker.php on a webserver with SSL in a DMZ and having
-		that proxy the connection from tasker so MH isn't exposed
-		directly to the Internet.
+    You can stop and leave this in place if you'll ONLY use Wi-Fi.
+    tasker_link.pl may be called directly, but I STRONGLY recommend
+    placing tasker.php on a webserver with SSL in a DMZ and having
+    that proxy the connection from tasker so MH isn't exposed
+    directly to the Internet.
 
-		Let's be honest. There are many other web server choices that
-		have been hardened for use on the Internet, and they STILL
-		see constant security fixes for new vulnerabilities. MH is
-		NOT on that list of hardened webservers. Don't expose it!
+    Let's be honest. There are many other web server choices that
+    have been hardened for use on the Internet, and they STILL
+    see constant security fixes for new vulnerabilities. MH is
+    NOT on that list of hardened webservers. Don't expose it!
 
-		BE CAUTIOUS! Continue below...
+    BE CAUTIOUS! Continue below...
 
 
 14) Place tasker.php from code/examples) onto a web server with access to MH, like on a DMZ.
@@ -139,14 +139,14 @@ use constant { true => 1, false => 0 };
 
 ################################################################################################
 if($Startup || $Reload) {
-	if( defined $TaskerInt ) {
-		print_log("[TASKER] (get_authority): ".Dumper($TaskerInt->{tasker_users})) if $main::Debug{tasker};
-	} else {
-		print_log("[TASKER] ERROR: No Tasker interface defined. Create TASKER_INTERFACE, TASKER_USER and TASKER_DEVICE entries in an MHT file. See tasker_users.pl for details.");
-	}
-	foreach my $key (split(",",$Save{tasker_forward_speech})) {
-		$tasker_voice_forward_list{$key}=1;
-	}
+  if( defined $TaskerInt ) {
+    print_log("[TASKER] {tasker_users}: ".Dumper($TaskerInt->{tasker_users})) if $main::Debug{tasker};
+  } else {
+    print_log("[TASKER] ERROR: No Tasker interface defined. Create TASKER_INTERFACE, TASKER_USER and TASKER_DEVICE entries in an MHT file. See tasker_users.pl for details.");
+  }
+  foreach my $key (split(",",$Save{tasker_forward_speech})) {
+    $tasker_voice_forward_list{$key}=1;
+  }
 }
 
 Speak_pre_add_hook(\&tasker_voice_send_speech) if $Reload;
@@ -156,50 +156,48 @@ Speak_pre_add_hook(\&tasker_voice_send_speech) if $Reload;
 ################################################################################################
 $v_tasker_send_keys = new Voice_Cmd 'send {tasker, } api keys';
 if(said $v_tasker_send_keys) {
-    $TaskerInt->send_keys();
+  $TaskerInt->send_keys();
 }
 
 ################################################################################################
 # Allow for voice announcement forwarding
 ################################################################################################
 if( new_minute || $Reload || said $v_tasker_send_speech) { #print list if there was a reload, or the command was recently used
-    print_log "[TASKER] Voice forwarding is active to: ".join(',',(keys %tasker_voice_forward_list)) if keys %tasker_voice_forward_list;
+  print_log "[TASKER] Voice forwarding is active to: ".join(',',(keys %tasker_voice_forward_list)) if keys %tasker_voice_forward_list;
 }
 
 $v_tasker_send_speech = new Voice_Cmd '[begin,start,end,stop] forwarding {voice, } {announcement,announcements}';
 if($state = said $v_tasker_send_speech) {
+  my ($set_by_key) = $v_tasker_send_speech->{target} =~ m|tasker[a-z]*\ api=(.*)|;
 
-    my ($set_by_key) = $v_tasker_send_speech->{target} =~ m|tasker[a-z]*\ api=(.*)|;
-
-    print_log "[TASKER] $state forwarding voice announcements: $set_by_key";
-    if(($state eq 'begin') || ($state eq 'start')) {
-    respond "Forwarding is already active" if defined $tasker_voice_forward_list{$set_by_key};
-    respond "Beginning announcement forwarding" unless defined $tasker_voice_forward_list{$set_by_key};
-    $tasker_voice_forward_list{$set_by_key}=1;
-    }
-    if(($state eq 'end') || ($state eq 'stop')) {
-    respond "Ending announcement forwarding" if defined $tasker_voice_forward_list{$set_by_key};
-    respond "Announcement forwarding was not enabled" unless defined $tasker_voice_forward_list{$set_by_key};
-    delete $tasker_voice_forward_list{$set_by_key};
-    }
-    $Save{tasker_forward_speech}=join(",", keys %tasker_voice_forward_list);
-    #print_log($Save{tasker_forward_speech});
+  print_log "[TASKER] $state forwarding voice announcements: $set_by_key";
+  if(($state eq 'begin') || ($state eq 'start')) {
+  respond "Forwarding is already active" if defined $tasker_voice_forward_list{$set_by_key};
+  respond "Beginning announcement forwarding" unless defined $tasker_voice_forward_list{$set_by_key};
+  $tasker_voice_forward_list{$set_by_key}=1;
+  }
+  if(($state eq 'end') || ($state eq 'stop')) {
+  respond "Ending announcement forwarding" if defined $tasker_voice_forward_list{$set_by_key};
+  respond "Announcement forwarding was not enabled" unless defined $tasker_voice_forward_list{$set_by_key};
+  delete $tasker_voice_forward_list{$set_by_key};
+  }
+  $Save{tasker_forward_speech}=join(",", keys %tasker_voice_forward_list);
 }
 
 $v_tasker_send_speech_end_all = new Voice_Cmd '[end,stop] forwarding {voice, } {announcement,announcements} for {everyone,all}';
 if($state = said $v_tasker_send_speech_end_all) {
-    my ($set_by_key) = $v_tasker_send_speech->{target} =~ m|tasker[a-z]*\ api=(.*)|;
-    my %vparms;
-    foreach my $key (keys %tasker_voice_forward_list) {
-        if ( $set_by_key ne $key ) {
-            $vparms{api} = $key;
-            $vparms{text} = 'Ending announcement forwarding by remote command';
-            respond_tasker(%vparms);
-        }
-        delete $tasker_voice_forward_list{$key};
+  my ($set_by_key) = $v_tasker_send_speech->{target} =~ m|tasker[a-z]*\ api=(.*)|;
+  my %vparms;
+  foreach my $key (keys %tasker_voice_forward_list) {
+    if ( $set_by_key ne $key ) {
+      $vparms{api} = $key;
+      $vparms{text} = 'Ending announcement forwarding by remote command';
+      respond_tasker(%vparms);
     }
-    delete $Save{tasker_forward_speech};
-    respond "Ending announcement forwarding for everyone";
+    delete $tasker_voice_forward_list{$key};
+  }
+  delete $Save{tasker_forward_speech};
+  respond "Ending announcement forwarding for everyone";
 }
 
 
@@ -207,30 +205,30 @@ if($state = said $v_tasker_send_speech_end_all) {
 #Voice command response
 ################################################################################################
 sub respond_tasker {
-    my (%parms) = @_;
-    print_log("[TASKER] respond_tasker: ".Dumper(%parms)) if $Debug{tasker};
-    $TaskerInt->_respond(@_);
+  my (%parms) = @_;
+  print_log("[TASKER] respond_tasker: ".Dumper(%parms)) if $Debug{tasker};
+  $TaskerInt->_respond(%parms);
 }
 ################################################################################################
 #Text response
 ################################################################################################
 sub respond_taskercmd {
-    my (%parms) = @_;
-    $parms{resptype}='cmdresp';
-    print_log("[TASKER] respond_taskercmd: ".Dumper(%parms)) if $Debug{tasker};
-    $TaskerInt->_respond(%parms);
+  my (%parms) = @_;
+  $parms{resptype}='cmdresp';
+  print_log("[TASKER] respond_taskercmd: ".Dumper(%parms)) if $Debug{tasker};
+  $TaskerInt->_respond(%parms);
 }
 
 ################################################################################################
 # Sub Declarations
 ################################################################################################
 sub tasker_http_response {
-    my ($txt, $response, $contenttype) = @_;
-    my $date = time2str(time);
-    return $txt if $txt =~ /^HTTP\//;
-    $response = '200 OK' unless defined $response;
-    $contenttype = 'text/plain' unless defined $contenttype;
-    return <<eof;
+  my ($txt, $response, $contenttype) = @_;
+  my $date = time2str(time);
+  return $txt if $txt =~ /^HTTP\//;
+  $response = '200 OK' unless defined $response;
+  $contenttype = 'text/plain' unless defined $contenttype;
+  return <<eof;
 HTTP/1.0 $response
 Server: MisterHouse
 Date: $date
@@ -243,395 +241,314 @@ eof
 
 #Called from tasker_link.pl, which is called from tasker.php on your web server
 sub tasker_call {
-    my ($params) = @_;
+  my ($params) = @_;
 
-    if(defined $params->{cmd} && $params->{cmd} =~ m/^tasker_interface_test$/i) {
-        print_log "[TASKER] TEST,       User Count: ".keys %{$TaskerInt->{tasker_users}};
-        print_log "[TASKER] TEST,     Device Count: ".keys %{$TaskerInt->{tasker_devices}};
-        print_log "[TASKER] TEST,        Key Count: ".keys %{$TaskerInt->{tasker_apikeys}};
-        print_log "[TASKER] TEST, Autoremote Count: ".keys %{$TaskerInt->{tasker_arkey}};
+  if(defined $params->{cmd} && $params->{cmd} =~ m/^tasker_interface_test$/i) {
+    print_log "[TASKER] TEST,       User Count: ".keys %{$TaskerInt->{tasker_users}};
+    print_log "[TASKER] TEST,     Device Count: ".keys %{$TaskerInt->{tasker_devices}};
+    print_log "[TASKER] TEST,        Key Count: ".keys %{$TaskerInt->{tasker_apikeys}};
+    print_log "[TASKER] TEST, Autoremote Count: ".keys %{$TaskerInt->{tasker_arkey}};
 
-        my $returntxt='<br><h2>TEST RESPONSE</h2>OK: Test call to tasker_call with parameter cmd=tasker_interface_test was successful.';
+    my $returntxt='<br><h2>TEST RESPONSE</h2>OK: Test call to tasker_call with parameter cmd=tasker_interface_test was successful.';
+    return $returntxt.'<br>See the MH log file for more detailed information. Enable debug to see it here.' unless $Debug{tasker};
 
-        #return $returntxt.'<br>See the MH log file for more detailed information. Enable debug to see it here.' unless $Debug{tasker};
+    $returntxt.='<p>';
+    $returntxt.=(keys %{ $TaskerInt->{tasker_users} }).' users defined<br>';
+    $returntxt.=(keys %{ $TaskerInt->{tasker_devices} }).' devices defined<br>';
+    $returntxt.=(keys %{ $TaskerInt->{tasker_apikeys} }).' API Keys defined<br>';
+    $returntxt.=(keys %{ $TaskerInt->{tasker_arkey} }).' Autoremote Keys defined<br>';
+    $returntxt.='</p>';
 
-        $returntxt.='<p>';
-        $returntxt.=(keys %{ $TaskerInt->{tasker_users} }).' users defined<br>';
-        $returntxt.=(keys %{ $TaskerInt->{tasker_devices} }).' devices defined<br>';
-        $returntxt.=(keys %{ $TaskerInt->{tasker_apikeys} }).' API Keys defined<br>';
-        $returntxt.=(keys %{ $TaskerInt->{tasker_arkey} }).' Autoremote Keys defined<br>';
-        $returntxt.='</p>';
+    return $returntxt;
+  }
 
-        return $returntxt;
+  if(!defined $TaskerInt->{tasker_apikeys}{$params->{header_api}}{userid}) {
+    print_log "[TASKER] ERROR: no api key found!";
+    return 'reply: key failure';
+  }
+  print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$params->{header_api}}{userid}}{fname}: Received Tasker call: ".Dumper($params) if $Debug{tasker};
+  print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$params->{header_api}}{userid}}{fname}: Received Tasker call (voice): ".$params->{voice} if defined($params->{voice});
+  print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$params->{header_api}}{userid}}{fname}: Received Tasker call (cmd): ".$params->{cmd} if defined($params->{cmd});
+
+  if(defined($params->{header_commandloc})) {
+    $params->{header_LOC} = decode_base64($params->{header_commandloc});
+    my @fields = split(/\n/, $params->{header_LOC});
+    foreach my $field (@fields) {
+       my ($locfield, $locinfo) = split(':', $field, 2);
+       if ($locfield eq 'latlong') {
+           $locfield='LOC' ;
+           $params->{header_LOC}=$locinfo;
+       } else {
+           $locfield='LOC'.$locfield;
+       }
+       tasker_property_set($params->{header_api},$locfield,$locinfo);
     }
+  }
+  if(defined($params->{notification})) {
+    tasker_notify_receive($params->{notification},$params->{header_api});
+  }
 
-    if(!defined $TaskerInt->{tasker_apikeys}{$params->{api}}{userid}) {
-        print_log "[TASKER] ERROR: no api key found!";
-        return 'reply: key failure';
-    }
-    print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$params->{api}}{userid}}{fname}: Received Tasker call: ".Dumper($params) if $Debug{tasker};
-    print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$params->{api}}{userid}}{fname}: Received Tasker call (voice): ".$params->{voice} if defined($params->{voice});
-    print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$params->{api}}{userid}}{fname}: Received Tasker call (cmd): ".$params->{cmd} if defined($params->{cmd});
+  if(defined($params->{voice})) {
+    return tasker_call_voice($params->{voice},$params->{header_api});
 
-    if(defined($params->{commandloc})) {
-        $params->{LOC} = decode_base64($params->{commandloc});
-        my @fields = split(/\n/, $params->{LOC});
-        foreach my $field (@fields) {
-           my ($locfield, $locinfo) = split(':', $field, 2);
-           if ($locfield eq 'latlong') {
-               $locfield='LOC' ;
-               $params->{LOC}=$locinfo;
-           } else {
-               $locfield='LOC'.$locfield;
-           }
-           tasker_property_set($params->{api},$locfield,$locinfo);
-        }
-    }
-    if(defined($params->{notification})) {
-        tasker_notify_receive($params->{notification},$params->{api});
-    }
-
-    if(defined($params->{voice})) {
-        return tasker_call_voice($params->{voice},$params->{api});
-
-    } elsif(defined($params->{cmd})) {
-        return tasker_call_cmd($params->{cmd},$params->{api});
+  } elsif(defined($params->{cmd})) {
+      return tasker_call_cmd($params->{cmd},$params->{header_api});
 =begin
 #Testing
-    #TODO: This bypasses security altogether. Think about security, or eliminate this option.
-    } elsif(defined($params->{setstate})) {
-        my @states;
-        foreach my $stateline (split(/,/, $params->{setstate})) {
-            my ($object_name, $objstate) = split(/:/, $stateline);
-            my $object = get_object_by_name($object_name);
-            foreach my $key (keys %{$object}) {
-                my %objvals=%{$object};
-                print_log "$object_name: ".$key." : ".$objvals{$key};
-            }
-            set $object $objstate if $object;
-        }
-        return 'set';
-
-    #Get state of objects.
-    #TODO: Should this consider security?
-    } elsif(defined($params->{getstate})) {
-        my @states;
-        foreach my $object_name (split(/,/, $params->{getstate})) {
-            my $object = get_object_by_name($object_name);
-            my $state='';
-            $state=state $object if $object;
-            push @states, $object_name.':'.$state;
-        }
-        return join(',',@states);
-=cut
-
+  #TODO: This bypasses security altogether. Think about security, or eliminate this option.
+  } elsif(defined($params->{setstate})) {
+    my @states;
+    foreach my $stateline (split(/,/, $params->{setstate})) {
+      my ($object_name, $objstate) = split(/:/, $stateline);
+      my $object = get_object_by_name($object_name);
+      foreach my $key (keys %{$object}) {
+        my %objvals=%{$object};
+        print_log "$object_name: ".$key." : ".$objvals{$key};
+      }
+      set $object $objstate if $object;
     }
+    return 'set';
 
+  #Get state of objects.
+  #TODO: Should this consider security?
+  } elsif(defined($params->{getstate})) {
+    my @states;
+    foreach my $object_name (split(/,/, $params->{getstate})) {
+      my $object = get_object_by_name($object_name);
+      my $state='';
+      $state=state $object if $object;
+      push @states, $object_name.':'.$state;
+    }
+    return join(',',@states);
+=cut
+    }
 }
 
 
 #To receive state updates from phones, e.g. charging status
 sub tasker_notify_receive {
-    my ($cmd,$api) = @_;
-    print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$api}{userid}}{fname}: Received Tasker notification: $cmd";
-    if($cmd =~ /^charger:o[nf]/) {
-        if($cmd =~ /^charger:on/) {
-            tasker_property_set($api,'charging',1);
-        }
-        elsif($cmd =~ /^charger:off/) {
-            tasker_property_set($api,'charging',0);
-        }
-        if($cmd =~ /\ wifi:on/) {
-            tasker_property_set($api,'wifi',1);
-        }
-        elsif($cmd =~ /\ wifi:off/) {
-            tasker_property_set($api,'wifi',0);
-        }
-        if(my ($battlev) = $cmd =~ m|\ batt:(\d+)|) {
-			tasker_property_set($api,'battery',$battlev);
-		}
+  my ($cmd,$api) = @_;
+  print_log "[TASKER] $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$api}{userid}}{fname}: Received Tasker notification: $cmd";
+  if($cmd =~ /^charger:o[nf]/) {
+    if($cmd =~ /^charger:on/) {
+      tasker_property_set($api,'charging',1);
     }
+    elsif($cmd =~ /^charger:off/) {
+      tasker_property_set($api,'charging',0);
+    }
+    if($cmd =~ /\ wifi:on/) {
+      tasker_property_set($api,'wifi',1);
+    }
+    elsif($cmd =~ /\ wifi:off/) {
+      tasker_property_set($api,'wifi',0);
+    }
+    if(my ($battlev) = $cmd =~ m|\ batt:(\d+)|) {
+      tasker_property_set($api,'battery',$battlev);
+    }
+  }
+  $TaskerInt->run_hooks('tasker_notify_receive', $cmd, $api);
 }
 
 #Internal sub to store data that the phones send
 sub tasker_property_set {
-    my ($api,$key,$value) = @_;
-    $Save{"Tasker_$TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$api}{userid}}{fname}_$TaskerInt->{tasker_apikeys}{$api}{deviceid}_$key"}=$value;
-    print_log "[TASKER] Save{Tasker_$TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$api}{userid}}{fname}_$TaskerInt->{tasker_apikeys}{$api}{deviceid}_$key} = ".$value if $Debug{tasker};
+  my ($api,$key,$value) = @_;
+  $Save{"Tasker_$TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$api}{userid}}{fname}_$TaskerInt->{tasker_apikeys}{$api}{deviceid}_$key"}=$value;
+  print_log "[TASKER] Save{Tasker_$TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$api}{userid}}{fname}_$TaskerInt->{tasker_apikeys}{$api}{deviceid}_$key} = ".$value if $Debug{tasker};
 }
 
 #For a phone to send a voice commant to MH
 sub tasker_call_cmd {
-    my ($cmd,$api) = @_;
-    %tasker_cmd=('api' => $api, 'cmd' => $cmd, 'responsetarget' => 'taskercmd');
+  my ($cmd,$api) = @_;
+  %tasker_cmd=('api' => $api, 'cmd' => $cmd, 'responsetarget' => 'taskercmd');
 
-    print_log "[TASKER] (tasker_call_cmd) Received Tasker command: $cmd" if $Debug{tasker};
-    my $result=tasker_voice_command_single($cmd,$api,'taskercmd');
-    $result='' unless defined $result;
-    print_log "[TASKER] (tasker_call_cmd) Result: $result" if $Debug{tasker};
-    return($result) if $result eq 'running' || $result =~ m/^reply:/ || $result =~ m/^cmdresp:/;
+  print_log "[TASKER] (tasker_call_cmd) Received Tasker command: $cmd" if $Debug{tasker};
+  my $result=tasker_voice_command_single($cmd,$api,'taskercmd');
+  $result='' unless defined $result;
+  print_log "[TASKER] (tasker_call_cmd) Result: $result" if $Debug{tasker};
+  return($result) if $result eq 'running' || $result =~ m/^reply:/ || $result =~ m/^cmdresp:/;
 
-    return tasker_http_response("reply: ".$TaskerInt->get_random_response('unknown'));#, '404 Not Found');
+  return tasker_http_response("reply: ".$TaskerInt->get_random_response('unknown'));#, '404 Not Found');
 }
 
 sub tasker_call_voice {
-    my ($cmds,$api) = @_;
-    print_log "[TASKER] (tasker_call_voice) Received Tasker voice command list: $cmds" if $Debug{tasker};
-    for my $cmd (split ',', $cmds) {
-        $cmd =~ s/^pseudo\ /sudo /i;
-        $cmd =~ s/^psuedo\ /sudo /i;
-        $cmd =~ s/^sudoh\ /sudo /i;
-        $cmd =~ s/^sue doe\ /sudo /i;
+  my ($cmds,$api) = @_;
+  print_log "[TASKER] (tasker_call_voice) Received Tasker voice command list: $cmds" if $Debug{tasker};
+  for my $cmd (split ',', $cmds) {
+    $cmd =~ s/^pseudo\ /sudo /i;
+    $cmd =~ s/^psuedo\ /sudo /i;
+    $cmd =~ s/^sudoh\ /sudo /i;
+    $cmd =~ s/^sue doe\ /sudo /i;
 
-        #Newer google voice dictation adds punctuation
-        $cmd =~ s/[\.?!] ?$//;
+    #Newer google voice dictation adds punctuation
+    $cmd =~ s/[\.?!] ?$//;
 
-        #Allow words to be ordered differently
-        $cmd =~ s/(turn)\ ([onf]{2,3})\ (.*)/$1 $3 $2/i;
+    #Allow words to be ordered differently
+    $cmd =~ s/(turn)\ ([onf]{2,3})\ (.*)/$1 $3 $2/i;
 
-        %tasker_cmd=('api' => $api, 'cmd' => $cmd);
+    %tasker_cmd=('api' => $api, 'cmd' => $cmd);
 
-        my $result=tasker_voice_command_single($cmd,$api);
-        $result='' unless defined $result;
-        print_log "[TASKER] (tasker_call_voice) Return: $result" if $Debug{tasker};
-        return($result) if $result eq 'running' || $result =~ m/^reply:/ || $result =~ m/^cmdresp:/;
-    }
-    return tasker_http_response("reply: ".$TaskerInt->get_random_response('unknown'));#, '404 Not Found');
+    my $result=tasker_voice_command_single($cmd,$api);
+    $result='' unless defined $result;
+    print_log "[TASKER] (tasker_call_voice) Return: $result" if $Debug{tasker};
+    return($result) if $result eq 'running' || $result =~ m/^reply:/ || $result =~ m/^cmdresp:/;
+  }
+  return tasker_http_response("reply: ".$TaskerInt->get_random_response('unknown'));#, '404 Not Found');
 }
 
 #Called by tasker_call_voice, for a phone to send a voice command to MH
 sub tasker_voice_command_single {
-	$tasker_cmd{cmdorig}=$tasker_cmd{cmd};
+  $tasker_cmd{cmdorig}=$tasker_cmd{cmd};
 
-	$tasker_cmd{announceroom}='' unless defined $tasker_cmd{announceroom};
-	$tasker_cmd{responsetarget}='tasker' unless defined $tasker_cmd{responsetarget};
-	$tasker_cmd{responsetarget} = "$tasker_cmd{responsetarget} api=$tasker_cmd{api}";
-	$tasker_cmd{cmduser} = $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$tasker_cmd{api}}{userid}}{username};
-	print_log "[TASKER] (tasker_voice_command_single) Command from ".$tasker_cmd{cmduser} .": ".$tasker_cmd{cmd} if $Debug{tasker};
+  $tasker_cmd{announceroom}='' unless defined $tasker_cmd{announceroom};
+  $tasker_cmd{responsetarget}='tasker' unless defined $tasker_cmd{responsetarget};
+  $tasker_cmd{responsetarget} = "$tasker_cmd{responsetarget} api=$tasker_cmd{api}";
+  $tasker_cmd{cmduser} = $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$tasker_cmd{api}}{userid}}{username};
+  print_log "[TASKER] (tasker_voice_command) Command from ".$tasker_cmd{cmduser} .": ".$tasker_cmd{cmd} if $Debug{tasker};
 
-	@tasker_responses=();
-	$tasker_cmd{cmd} =~ s/^computer\ //g;
-	$tasker_cmd{cmd} =~ s/^mr\.?\ house\ //g;
-	$tasker_cmd{cmd} =~ s/^mister\ house\ //g;
-	$tasker_cmd{cmd} =~ s/_/ /g;
-	print_log "[TASKER] Processing modified command: $tasker_cmd{cmd}" if $Debug{tasker};
+  @tasker_responses=();
+  $tasker_cmd{cmd} =~ s/^computer\ //g;
+  $tasker_cmd{cmd} =~ s/^mr\.?\ house\ //g;
+  $tasker_cmd{cmd} =~ s/^mister\ house\ //g;
+  $tasker_cmd{cmd} =~ s/_/ /g;
+  print_log "[TASKER] Processing modified command: $tasker_cmd{cmd}" if $Debug{tasker};
 
-	my $subreturn=0;
-	my $sub = main->can("tasker_voice_command_single_hook_pre");
-	if ($sub) {
-		print_log("[TASKER] (tasker_voice_command_single) Calling tasker_voice_command_single_hook_pre");
-		$subreturn = $sub->();
-	}
-	if ($subreturn) {
-		print_log("[TASKER] Call to tasker_voice_command_single_hook_pre returned true");
-	}
+  $TaskerInt->run_hooks('tasker_voice_command');
 
-	#Look for exact command matches
-	print_log "[TASKER] (tasker_voice_command_single) Considering command: $tasker_cmd{cmd}" if $Debug{tasker};
-	my ($ref) = Voice_Cmd::voice_item_by_text( lc($tasker_cmd{cmd}) );
+  if (!defined $tasker_cmd{responsetxt}) {
 
-	if(!$ref && $tasker_cmd{cmd} =~ m/\ my\ /i) {
-		#Look for a match with "my" replaced.
-		$tasker_cmd{cmd} =~ s/\ my\ / $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$tasker_cmd{api}}{userid}}{nickname} /ig;
-		print_log "[TASKER] (tasker_voice_command_single) Rewritinging Tasker command: $tasker_cmd{cmd}" if $Debug{tasker};
-		($ref) = Voice_Cmd::voice_item_by_text( lc($tasker_cmd{cmd}) );
-	}
-	if($ref) {
-	$tasker_cmd{cmdauthority} = $ref->get_authority if $ref;
-	$tasker_cmd{cmdauthority} = $Password_Allow{$tasker_cmd{cmd}} unless $tasker_cmd{cmdauthority};
+    #Look for exact command matches
+    print_log "[TASKER] (tasker_voice_command_single) Considering command: $tasker_cmd{cmd}" if $Debug{tasker};
+    my ($ref) = Voice_Cmd::voice_item_by_text( lc($tasker_cmd{cmd}) );
 
-	if ( tasker_authorized($tasker_cmd{cmdauthority}, $tasker_cmd{cmduser}, $tasker_cmd{cmd}) ) {
-		print_log "[TASKER] Running command...";
-		if($tasker_cmd{announceroom} ne '') {
-			print_log "[TASKER] (tasker_voice_command_single) Sending speech to room $tasker_cmd{announceroom}: $tasker_cmd{responsetxt}";
-			$tasker_cmd{responsetarget}="$tasker_cmd{responsetarget} rooms=$tasker_cmd{announceroom}";
-		}
-		run_voice_cmd($tasker_cmd{cmd}, undef, 'tasker', 0, $tasker_cmd{responsetarget});
-		return 'running';
-	} else {
-		$tasker_cmd{responsetxt} = "reply: ".$TaskerInt->get_random_response('denied');
-		return $tasker_cmd{responsetxt};
-	}
+    if(!$ref && $tasker_cmd{cmd} =~ m/\ my\ /i) {
+      #Look for a match with "my" replaced.
+      $tasker_cmd{cmd} =~ s/\ my\ / $TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$tasker_cmd{api}}{userid}}{nickname} /ig;
+      print_log "[TASKER] (tasker_voice_command_single) Rewritinging Tasker command: $tasker_cmd{cmd}" if $Debug{tasker};
+      ($ref) = Voice_Cmd::voice_item_by_text( lc($tasker_cmd{cmd}) );
+    }
+    if($ref) {
+    $tasker_cmd{cmdauthority} = $ref->get_authority if $ref;
+    $tasker_cmd{cmdauthority} = $Password_Allow{$tasker_cmd{cmd}} unless $tasker_cmd{cmdauthority};
 
-	} elsif($tasker_cmd{cmdorig} =~ m/^hi\ ?.*/i || $tasker_cmd{cmdorig} =~ m/^hello\ ?.*/i) {
-		@tasker_responses=(
-			'Hi {fname}.',
-			'Hi {fname}. Good to hear from you.',
-			'Hi!',
-			'Oh hi!',
-			'Hello there.',
-			'Greetings {fname}!',
-			'Good day.'
-		);
+    if ( tasker_authorized($tasker_cmd{cmdauthority}, $tasker_cmd{cmduser}, $tasker_cmd{cmd}) ) {
+      print_log "[TASKER] Running command...";
+      if($tasker_cmd{announceroom} ne '') {
+        print_log "[TASKER] (tasker_voice_command_single) Sending speech to room $tasker_cmd{announceroom}: $tasker_cmd{responsetxt}";
+        $tasker_cmd{responsetarget}="$tasker_cmd{responsetarget} rooms=$tasker_cmd{announceroom}";
+      }
+      run_voice_cmd($tasker_cmd{cmd}, undef, 'tasker', 0, $tasker_cmd{responsetarget});
+      return 'running';
+    } else {
+      $tasker_cmd{responsetxt} = "reply: ".$TaskerInt->get_random_response('denied');
+      return $tasker_cmd{responsetxt};
+    }
 
-	} elsif($tasker_cmd{cmdorig} =~ m/^hola\ ?.*/i) {
-		@tasker_responses=(
-			'Hola {fname}. ¿Hablas español?',
-		);
+    } elsif($tasker_cmd{cmdorig} =~ m/^hi\ ?.*/i || $tasker_cmd{cmdorig} =~ m/^hello\ ?.*/i) {
+      @tasker_responses=(
+        'Hi {fname}.',
+        'Hi {fname}. Good to hear from you.',
+        'Hi!',
+        'Oh hi!',
+        'Hello there.',
+        'Greetings {fname}!',
+        'Good day.'
+      );
 
-	} elsif($tasker_cmd{cmdorig} =~ m/^happy\ birthday\ ?.*/i) {
-		@tasker_responses=("Thanks {fname}. But I don't even know when my birthday is.","Oh, is today my birthday? Thank you {fname}!","It's not my birthday, you're confised.");
+    } elsif($tasker_cmd{cmdorig} =~ m/^hola\ ?.*/i) {
+      @tasker_responses=(
+        'Hola {fname}. ¿Hablas español?',
+      );
 
-	} elsif($tasker_cmd{cmdorig} =~ m/^happy\ ?.*/i) {
-		$tasker_cmd{responsetxt} = "reply: Thank you.";
+    } else {
+      $TaskerInt->run_hooks('tasker_voice_command_notfound');
+      if (!defined $tasker_cmd{responsetxt}) {
+        print_log "[TASKER] Command not recognized";
+        return tasker_http_response("reply: ".$TaskerInt->get_random_response('unknown')); #Return here so the phone gets the error, even if "announce" was used to redirect
+      } else {
+        print_log "[TASKER] Hook tasker_voice_command_notfound returned a response";
+      }
+    }
+  } else {
+    print_log "[TASKER] Hook tasker_voice_command returned a response";
+  }
+  print_log("[TASKER] response_text: ".$tasker_cmd{responsetxt}) if defined $tasker_cmd{responsetxt} && $Debug{tasker};
+  print_log("[TASKER] tasker_responses: ".Dumper(@tasker_responses)) if $Debug{tasker};
+  if($#tasker_responses gt 0) {
+    $tasker_cmd{responsetxt} = "reply: ".$tasker_responses[int rand($#tasker_responses)];
+  }
+  $tasker_cmd{responsetxt} = '' unless defined $tasker_cmd{responsetxt};
+  $tasker_cmd{responsetxt} =~ s/{fname}/$TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$tasker_cmd{api}}{userid}}{fname}/;
 
-	} elsif( ($tasker_cmd{cmd} =~ m/^what.* [0-9]+ \+ [0-9]+/i) ) {
-		$tasker_cmd{cmd} =~ s/^what.* ([0-9]+) \+ ([0-9]+)/$1 + $2/i;
-		print_log "[TASKER] evaluating: $tasker_cmd{cmd}";
-		$tasker_cmd{responsetxt}=eval($tasker_cmd{cmd});
-		@tasker_responses=(
-			"Easy. That's ".$tasker_cmd{responsetxt}.".",
-			"Sure. That's ".$tasker_cmd{responsetxt}.".",
-			"It's ".$tasker_cmd{responsetxt}.".",
-			"It's ".$tasker_cmd{responsetxt}.".",
-			$tasker_cmd{responsetxt}."."
-		);
+  print_log("response_text: ".$tasker_cmd{responsetxt}) if $Debug{tasker};
+  if(defined($tasker_cmd{responsetxt})) {
+    $tasker_cmd{responsetxt} =~ s/^reply: //i;
+    print_log("response_texts: ".$tasker_cmd{responsetxt}) if $Debug{tasker};
+    print_log("responsetarget: ".$tasker_cmd{responsetarget}) if $Debug{tasker};
 
-	} elsif( ($tasker_cmd{cmd} =~ m/^what.* [0-9]+ \- [0-9]+/i) ) {
-		$tasker_cmd{cmd} =~ s/^what.* ([0-9]+) \- ([0-9]+)/$1 - $2/i;
-		print_log "[TASKER] evaluating: tasker_cmd{cmd}";
-		$tasker_cmd{responsetxt}=eval($tasker_cmd{cmd});
-		@tasker_responses=(
-			"Easy. That's ".$tasker_cmd{responsetxt}.".",
-			"Sure. That's ".$tasker_cmd{responsetxt}.".",
-			"It's ".$tasker_cmd{responsetxt}.".",
-			"It's ".$tasker_cmd{responsetxt}.".",
-			$tasker_cmd{responsetxt}."."
-		);
+    #Send directy back to phone, but only if not redirected
+    if($tasker_cmd{responsetarget} =~ m/^tasker[a-z]*\ api/i && !defined $tasker_cmd{announcetarget}) {
+      print_log('[TASKER] Response: '.$tasker_cmd{responsetxt});
+      if($tasker_cmd{responsetarget} =~ m/^taskercmd\ /i) {
+        print_log("responsetarget: ".$tasker_cmd{responsetarget}) if $Debug{tasker};
+        return 'cmdresp: '.$tasker_cmd{responsetxt};
+      } else {
+        return 'reply: '.$tasker_cmd{responsetxt};
+      }
+    }
 
-	} elsif( ($tasker_cmd{cmd} =~ m/^what.* [0-9]+ [x*] [0-9]+/i) ) {
-		$tasker_cmd{cmd} =~ s/^what.* ([0-9]+) [x*] ([0-9]+)/$1 * $2/i;
-		print_log "[TASKER] evaluating: tasker_cmd{cmd}";
-		$tasker_cmd{responsetxt}=eval($tasker_cmd{cmd});
-		@tasker_responses=(
-			"That's ".$tasker_cmd{responsetxt}.".",
-			"It's ".$tasker_cmd{responsetxt}.".",
-			$tasker_cmd{responsetxt}."."
-		);
-
-	} elsif( ($tasker_cmd{cmd} =~ m/^what.* [0-9]+ \/ [0-9]+/i) ) {
-		$tasker_cmd{cmd} =~ s/^what.* ([0-9]+) \/ ([0-9]+)/$1 \/ $2/i;
-		print_log "[TASKER] evaluating: tasker_cmd{cmd}";
-		if($tasker_cmd{cmd} =~ m/ \/ 0/i) {
-			@tasker_responses=(
-				"That's impossible math. Don't try to trick me.",
-				"There's no answer to that equation.",
-				"Error. Error. Error.",
-				"Ok, so you have something to share, but you have zero friends to share it with. That's so sad. You should talk to someone about that.",
-				"I did't learn that kind of math.",
-				"I didn't study fiction.",
-				"I didn't study ficticious math."
-			);
-
-		} else {
-			$tasker_cmd{responsetxt} = "reply: That's ".eval($tasker_cmd{cmd}).".";
-		}
-
-	} elsif( ($tasker_cmd{cmd} =~ m/^what.* [0-9]+ split [0-9]+ ways/i) ) {
-		$tasker_cmd{cmd} =~ s/^what.* ([0-9]+) split ([0-9]+)\ .*$/$1 \/ $2/i;
-		print_log "[TASKER] evaluating: tasker_cmd{cmd}";
-		$tasker_cmd{responsetxt} = "reply: That's ".eval($tasker_cmd{cmd}).".";
-
-	} elsif( ($tasker_cmd{cmd} =~ m/^what.* square root.*\ [0-9]+/i) ) {
-		$tasker_cmd{cmd} =~ s/^what.* square root.*\ (-*[0-9]+)/$1/i;
-		$tasker_cmd{cmd} =~ s/\ million/000000/;
-		$tasker_cmd{cmd} =~ s/\ billion/000000000/;
-		$tasker_cmd{cmd} =~ s/\ trillion/000000000000/;
-		print_log "[TASKER] evaluating: tasker_cmd{cmd}";
-		$tasker_cmd{responsetxt} = "reply: The square root of $tasker_cmd{cmd} is ".sqrt($tasker_cmd{cmd}).".";
-
-	} else {
-		my $sub = main->can("tasker_voice_command_single_hook_notfound");
-		$subreturn=0; #Assume we found nothing in the sub, or no sub was called.
-		if ($sub) {
-		  print_log("[TASKER] (tasker_voice_command_single) Calling tasker_voice_command_single_hook_notfound");
-		  $subreturn = $sub->();
-		}
-		if ($subreturn) {
-		  print_log("[TASKER] Call to tasker_voice_command_single_hook_notfound returned true");
-		}
-		else {
-		  print_log "[TASKER] Command not recognized";
-		  return tasker_http_response("reply: ".$TaskerInt->get_random_response('unknown')); #Return here so the phone gets the error, even if "announce" was used to redirect
-		}
-	}
-	print_log("[TASKER] response_text: ".$tasker_cmd{responsetxt}) if defined $tasker_cmd{responsetxt} && $Debug{tasker};
-	print_log("[TASKER] tasker_responses: ".Dumper(@tasker_responses)) if $Debug{tasker};
-	if($#tasker_responses gt 0) {
-		$tasker_cmd{responsetxt} = "reply: ".$tasker_responses[int rand($#tasker_responses)];
-	}
-	$tasker_cmd{responsetxt} =~ s/{fname}/$TaskerInt->{tasker_users}{$TaskerInt->{tasker_apikeys}{$tasker_cmd{api}}{userid}}{fname}/;
-	
-	print_log("response_text: ".$tasker_cmd{responsetxt}) if $Debug{tasker};
-	if(defined($tasker_cmd{responsetxt})) {
-		$tasker_cmd{responsetxt} =~ s/^reply: //i;
-		print_log("response_texts: ".$tasker_cmd{responsetxt}) if $Debug{tasker};
-		print_log("responsetarget: ".$tasker_cmd{responsetarget}) if $Debug{tasker};
-
-		#Send directy back to phone, but only if not redirected
-		if($tasker_cmd{responsetarget} =~ m/^tasker[a-z]*\ api/i && !defined $tasker_cmd{announcetarget}) {
-			print_log('[TASKER] Response: '.$tasker_cmd{responsetxt});
-			if($tasker_cmd{responsetarget} =~ m/^taskercmd\ /i) {
-				print_log("responsetarget: ".$tasker_cmd{responsetarget}) if $Debug{tasker};
-				return 'cmdresp: '.$tasker_cmd{responsetxt};
-			} else {
-				return 'reply: '.$tasker_cmd{responsetxt};
-			}
-		}
-
-		if($tasker_cmd{responsetarget} eq 'default') {
-			$tasker_cmd{responsetxt} = "nolog=1 $tasker_cmd{responsetxt}";
-			respond("target=$tasker_cmd{responsetarget} $tasker_cmd{responsetxt}");
-			return 'running';
-		} elsif($tasker_cmd{announceroom} ne '') {
-			print_log "[TASKER] Sending speech to room $tasker_cmd{announceroom}: $tasker_cmd{responsetxt}";
-			speak("rooms=$tasker_cmd{announceroom} $tasker_cmd{responsetxt}");
-			return 'running';
-		}
-		return $tasker_cmd{responsetxt};
-	}
-	return 'running';
+    if($tasker_cmd{responsetarget} eq 'default') {
+      $tasker_cmd{responsetxt} = "nolog=1 $tasker_cmd{responsetxt}";
+      respond("target=$tasker_cmd{responsetarget} $tasker_cmd{responsetxt}");
+      return 'running';
+    } elsif($tasker_cmd{announceroom} ne '') {
+      print_log "[TASKER] Sending speech to room $tasker_cmd{announceroom}: $tasker_cmd{responsetxt}";
+      speak("rooms=$tasker_cmd{announceroom} $tasker_cmd{responsetxt}");
+      return 'running';
+    }
+    return $tasker_cmd{responsetxt};
+  }
+  return 'running';
 
 =begin
   #Might be used later...
 
-    # Look for nearest fuzzy match
-    my $cmd1 = tasker_phrase_match($tasker_cmd{cmd});
+  # Look for nearest fuzzy match
+  my $cmd1 = tasker_phrase_match($tasker_cmd{cmd});
 
-    process_external_command($cmd1, 1, 'tasker', "tasker api=tasker_cmd{api}");
-    return 'done';
+  process_external_command($cmd1, 1, 'tasker', "tasker api=tasker_cmd{api}");
+  return 'done';
 =cut
 
 }
 
 #Send a request to the phone to speak, usually in response to a voice command
 sub tasker_voice_send_speech {
-    print_log "[TASKER] Speech Pre hook called";
-    my (%parms) = @_;
-    return if ($mode_mh->{state} eq 'mute' or $mode_mh->{state} eq 'offline') and not $parms{mode} =~ m/unmute/;
+  print_log "[TASKER] Speech Pre hook called";
+  my (%parms) = @_;
+  return if ($mode_mh->{state} eq 'mute' or $mode_mh->{state} eq 'offline') and not $parms{mode} =~ m/unmute/;
 
-    print_log("(tasker_voice_send_speech) tasker_voice_forward_list: ".Dumper(%tasker_voice_forward_list));
-    foreach my $apikey (keys %tasker_voice_forward_list) {
-        my $arkey=$TaskerInt->{tasker_apikeys}{$apikey}{arkey};
-        $TaskerInt->send_with_key($arkey, "=:=say=".$parms{text});
-    }
+  print_log("(tasker_voice_send_speech) tasker_voice_forward_list: ".Dumper(%tasker_voice_forward_list));
+  foreach my $apikey (keys %tasker_voice_forward_list) {
+      my $arkey=$TaskerInt->{tasker_apikeys}{$apikey}{arkey};
+      $TaskerInt->send_with_key($arkey, "=:=say=".$parms{text});
+  }
 }
 
 #Check to see if a user is authorized to run a voice command.
 sub tasker_authorized {
-    my ($cmdauthority,$cmduser,$cmd) = @_;
-	$cmdauthority='' unless defined $cmdauthority;
-    print_log "[TASKER] user:$cmduser a=$cmdauthority cmd=$cmd\n";
-    my @cmdautharray = split(',', $cmdauthority);
-    if ( $cmdauthority and (
-        $cmdauthority eq 'anyone'
-        or grep { $_ eq $cmduser} @cmdautharray
-    ) ) {
-        print_log "[TASKER] Command authorized for $cmduser: $cmd";
-        return true;
-    }
-    print_log "[TASKER] Command not authorized for $cmduser: $cmd";
-    return false;
+  my ($cmdauthority,$cmduser,$cmd) = @_;
+  $cmdauthority='' unless defined $cmdauthority;
+  print_log "[TASKER] user:$cmduser a=$cmdauthority cmd=$cmd\n";
+  my @cmdautharray = split(',', $cmdauthority);
+  if ( $cmdauthority and (
+      $cmdauthority eq 'anyone'
+      or grep { $_ eq $cmduser} @cmdautharray
+  ) ) {
+      print_log "[TASKER] Command authorized for $cmduser: $cmd";
+      return true;
+  }
+  print_log "[TASKER] Command not authorized for $cmduser: $cmd";
+  return false;
 }
 
 ################################################################################################
@@ -639,16 +556,16 @@ sub tasker_authorized {
 #Might be used later...
 
 sub tasker_phrase_match {
-    my ($phrase) = @_;
-    my (%list1);
-    my $d_min1 = 999;
-    my $set1 = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    my @phrases = Voice_Cmd::voice_items('mh', 'no_category');
-    for my $phrase2 (sort @phrases) {
-        my $d = pdistance($phrase, $phrase2, $set1, \&distance, {-cost => [0.5,0,4], -mode => 'set'});
-        push @{$list1{$d}}, $phrase2 if $d <= $d_min1;
-        $d_min1 = $d if $d < $d_min1;
-    }
-    return ${$list1{$d_min1}}[0];
+  my ($phrase) = @_;
+  my (%list1);
+  my $d_min1 = 999;
+  my $set1 = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  my @phrases = Voice_Cmd::voice_items('mh', 'no_category');
+  for my $phrase2 (sort @phrases) {
+    my $d = pdistance($phrase, $phrase2, $set1, \&distance, {-cost => [0.5,0,4], -mode => 'set'});
+    push @{$list1{$d}}, $phrase2 if $d <= $d_min1;
+    $d_min1 = $d if $d < $d_min1;
+  }
+  return ${$list1{$d_min1}}[0];
 }
 =cut

@@ -66,7 +66,7 @@ $client_ip_address=$Http{'X-REAL-IP'} if defined $Http{'X-REAL-IP'};
 print_log("[TASKER_LINK] client_ip_address: $client_ip_address") if $Debug{tasker};
 print_log("[TASKER_LINK] ARGV: ".Dumper(@ARGV)) if $Debug{tasker};
 print_log("[TASKER_LINK] User-Agent: $Http{'User-Agent'}") if $Debug{tasker};
-
+print_log(Dumper(%Http));
 #If a Tasker client is making this call, treat it normally
 if( $Http{'User-Agent'} =~ /Tasker/i ) {
   return $error500 if $tlerror;
@@ -76,8 +76,11 @@ if( $Http{'User-Agent'} =~ /Tasker/i ) {
     return tasker_http_response('ERROR:No data passed');
     exit;
   }
-  push @ARGV, 'client_ip_address='.$client_ip_address;
-  push @ARGV, 'User-Agent='.$Http{'User-Agent'};
+  push @ARGV, 'header_client_ip_address='.$client_ip_address;
+  push @ARGV, 'header_user-agent='.$Http{'User-Agent'};
+  push @ARGV, 'header_ver='.$Http{'ver'};
+  push @ARGV, 'header_api='.$Http{'api'};
+  push @ARGV, 'header_commandloc='.$Http{'commandloc'};
   my $params;
   foreach my $part (@ARGV) {
     my ( $name, $value ) = split( /\=/, $part, 2 );
