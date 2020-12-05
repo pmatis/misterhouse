@@ -1,4 +1,4 @@
-# Category = Voice
+# Category = Tasker
 #@Tasker voice commands
 =begin
 ################################################################################################
@@ -69,11 +69,11 @@ SECURE IT:
     see constant security fixes for new vulnerabilities. MH is
     NOT on that list of hardened webservers. Don't expose it!
 
-    BE CAUTIOUS! Continue below...
+    BE CAUTIOUS! Continue below:
 
 
-14) Place tasker.php from code/examples) onto a web server with access to MH, like on a DMZ.
-    SECURE THE LINK FROM THE WEBSERVER TO MH!
+14) Place tasker.php (from code/examples) onto a web server with IP access to MH, like in a DMZ.
+    SECURE THE LINK FROM THE WEBSERVER TO MH, minimizing open ports!
     This file calls tasker_link.pl, but you'll have to adjust the top 2 lines:
     $MHSERVERIP='192.168.1.15';
     $MHSERVERPORT=8080;
@@ -82,7 +82,7 @@ SECURE IT:
 16) Add an SSL certificate. This is HIGHLY RECOMMENDED so your API key can't be stolen and used to do
     annoying (or destructive) things in your home.
 
-17) Create your own user code to handle more voice commands.
+17) Create your own user code to handle more voice commands and/or hooks.
 
 
 ################################################################################################

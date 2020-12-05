@@ -1,5 +1,5 @@
-# Category = Voice
-#@Android voice commands
+# Category = Tasker
+#@Tasker voice commands
 ################################################################################################
 use strict;
 use vars qw(@tasker_responses);
