@@ -27,6 +27,7 @@ if ($_SERVER['HTTPS'] == "on") {
     error_log("Calling URL: $URL");
     $ch = curl_init($URL);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, $MHSERVERTIMEOUT);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(
       'X-REAL-IP: '.getIP(),
@@ -34,6 +35,18 @@ if ($_SERVER['HTTPS'] == "on") {
     curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
     $response = curl_exec($ch);
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headers = substr($response, 0, $header_size);
+    $body = substr($response, $header_size);
+
+    $headers_indexed_arr = explode("\n", $headers);
+
+    foreach ($headers_indexed_arr as $value) {
+        if (strpos($value, ': ') !== false) {
+            header($value);
+        }
+    }
+
     error_log("CURL response code: $httpcode");
     if (curl_error($ch)) {
         $error_msg = curl_error($ch);
@@ -49,21 +62,22 @@ if ($_SERVER['HTTPS'] == "on") {
         exit;
     }
 
+    #if($httpcode == 0) {$httpcode = 200;}
+    #error_log("httpcode from MH $httpcode");
     curl_close($ch);
-    if(!in_array($httpcode, array(200))) {
+    if(!in_array($httpcode, array(200,403,404))) {
         header("HTTP/1.1 $httpcode OK");
         print 'ERROR: Received HTTP code '.$httpcode;
         error_log('ERROR: Received HTTP code '.$httpcode);
         exit;
     }
-    $response=rtrim($response);
-    error_log("Responding with: $response");
-    print $response;
+    $body=rtrim($body);
+    error_log("Responding with: $body");
+    print $body;
 } else {
     print "failed";
     error_log("Responding with: failed");
 }
 
-#error_log(print_r($_SERVER,true));
 exit;
 ?>

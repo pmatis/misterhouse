@@ -15,7 +15,7 @@ use Data::Dumper::Simple;
 
 my @tasker_denied=('Denied.','Access denied.','This command is not for you.','Command not authorized.',"I can't let you do that.","Please ask to be given permission.","You have to ask my master for permission.");
 my @tasker_unknown=('Unknown command.',"My master didn't teach me that command.",'I know not what you speak of.',"Maybe if you say it differently, I'll get it.",'Sorry, try again?');
-my (%hook_pointers, %hook_locations);
+our (%hook_pointers, %hook_locations);
 
 ################################################################################################
 # Construction subs
@@ -155,17 +155,36 @@ sub add_hook {
     print "[Tasker_Interface] add_hook: Invalid hook location, loc=$location hook=$hook\n";
     return 0;
   }
-
   unless ( ref $hook eq 'CODE' ) {
     print "[Tasker_Interface] add_hook: Hook must be a code reference, loc=$location hook=$hook\n";
     return 0;
   }
 
   $hook_pointers{$location} = [] unless defined( $hook_pointers{$location} );
-
   push( @{ $hook_pointers{$location} }, [ $hook, @parms ] );
-
   return 1;
+}
+
+sub drop_hook {
+  my ($self, $location, $hook ) = @_;
+  unless ( defined( $hook_locations{$location} ) ) {
+    print "[Tasker_Interface] drop_hook: Invalid hook location, loc=$location hook=$hook\n";
+    return 0;
+  }
+  if ( defined( $hook_pointers{$location} ) ) {
+    my ($h) = $hook_pointers{$location};
+    my ($i) = -1;
+    for ( $i = $#{$h}; $i >= 0; $i-- ) {
+      last if ( $hook == $h->[$i][0] );
+    }
+    # delete if the index returned is in range
+    if ( $i >= 0 and $i <= $#{$h} ) {
+      splice( @{$h}, $i, 1 );
+      return 1;
+    }
+  }
+  print "[Tasker_Interface] drop_hook: Specified hook not found, loc=$location hook=$hook\n";
+  return 0;
 }
 
 sub get_hooks {
@@ -185,6 +204,15 @@ sub run_hooks {
   }
 }
 
+sub reset_hook_code {
+  for my $location ( keys %hook_locations ) {
+    my @hook_pointers_persistent;
+    for my $ptr ( &get_hooks($location) ) {
+      my ( $hook, $type, @parms ) = @$ptr;
+    }
+    @{ $hook_pointers{$location} } = @hook_pointers_persistent;
+  }
+}
 
 ################################################################################################
 # Message sending to AutoRemote/Tasker
