@@ -49,6 +49,8 @@ use vars qw( $OS_win $ob $port $log_dir);
 use RollFileHandle;
 my $version = .04;
 
+use Data::Dumper::Simple;
+
 my $man  = 0;
 my $help = 0;
 
@@ -139,6 +141,7 @@ my $msg_recv_time;
 #exit;
 
 my (%zone_hash);
+my (%zone_dirty);
 my (@xmit_q);
 my ($reply_pending);
 my $alarmed = 0;
@@ -276,12 +279,12 @@ die "Can't open serial port $port: $^E\n" unless ($ob);
 $ob->user_msg(1);     # misc. warnings
 $ob->error_msg(1);    # hardware and data errors
 
-#	$ob->baudrate(9600);
-#	$ob->parity("even");
-#	$ob->parity_enable(1);   # for any parity except "none"
-#	$ob->databits(7);
-#	$ob->stopbits(2);
-#	$ob->handshake('none');
+# $ob->baudrate(9600);
+# $ob->parity("even");
+# $ob->parity_enable(1);   # for any parity except "none"
+# $ob->databits(7);
+# $ob->stopbits(2);
+# $ob->handshake('none');
 #
 
 my $pick_baud = 38400;
@@ -340,11 +343,11 @@ while (1) {
     ## the read_const_time should break us out of the read if the
     ##   controller quits responding.
     ##if(@xmit_q){
-    ##	$SIG{ALRM}=\&wake_up;
-    ##	alarm(5);  # (re)send msg if controller is quiet
+    ##  $SIG{ALRM}=\&wake_up;
+    ##  alarm(5);  # (re)send msg if controller is quiet
     ##}
     ##else{
-    ##	alarm(0);  # turn it off
+    ##  alarm(0);  # turn it off
     ##}
     if (@xmit_q) {    ## if there is data pending...
         $ob->read_const_time(5000);    ## use a (shorter) timeout
@@ -356,8 +359,8 @@ while (1) {
     my $result;
     my $char = $ob->GETC();
 
-    #	my ($count, $result) = $ob->read(100);
-    #	my $result  = $ob->READLINE();
+    # my ($count, $result) = $ob->read(100);
+    # my $result  = $ob->READLINE();
     if ( defined $char ) {
         my $hhmmss = &fmt_hhmmss;
         $debug_io && print "$hhmmss read char:", length($char), ":";
@@ -399,6 +402,7 @@ while (1) {
             $debug_sum && print "checksum MATCH\n";
             &dump( $accum, "Match:" );
             my $key = uc( sprintf( "%02x", $msg_num ) . "h" );
+            print "laycode KEY: $key\n";
             if ( $caddx::parse::laycode{$key} ) {
                 $debug_sum && print "calling rtn for $key\n";
                 my $phash = &{ $caddx::parse::laycode{$key} }($msg);
@@ -454,7 +458,7 @@ while (1) {
           #$udp_fh->send($msg);
           #print "sent udp: [$msg]\n";
           #for(my $x=0;$x<length($result);$x++){
-          #	printf("[%02x]",ord(substr($result,$x,1)));
+          # printf("[%02x]",ord(substr($result,$x,1)));
           #}
           #print "\n";
           #&reset_accum();        # empty out the accumulator
@@ -786,22 +790,30 @@ sub wake_up {
 #####################################
 sub process_msg {
     my ( $msg_num, $phash ) = @_;
+    print "**************************************************\n";
+    print "Rec msg_num: $msg_num\n";
+    print "**************************************************\n";
     if ( $msg_num == 3 ) {    # zone name
         my $zone = $phash->{zone};
         if ( defined $zone ) {
             $zone = ord($zone) + 1;
+            $phash->{zone_name} =~ s/\s+$//;
             &cache_info( $zone, "zone_name", $phash->{zone_name} );
+
+            #&send_if_dirty( $zone );
         }
     }
     elsif ( $msg_num == 4 ) {    # zone status
         my $zone = $phash->{zone};
         if ( defined $zone ) {
             $zone = ord($zone) + 1;
-            &cache_info( $zone, "faulted",      $phash->{faulted} );
             &cache_info( $zone, "tampered",     $phash->{tampered} );
             &cache_info( $zone, "trouble",      $phash->{trouble} );
             &cache_info( $zone, "bypassed",     $phash->{bypassed} );
             &cache_info( $zone, "alarm_memory", $phash->{alarm_memory} );
+            &cache_info( $zone, "faulted",      $phash->{faulted} );
+
+            &send_if_dirty( $zone );
         }
     }
     elsif ( $msg_num == 5 ) {    # zone snapshot
@@ -832,10 +844,12 @@ sub process_msg {
                 $debug_msg && print "calling rtn for zsnap $zoff [$zone]\n";
                 my $phash = &{$zsnap_rtn}( $phash->{$zoff} );
                 &show_parsed( $phash->{_parsed_}, "$zoff [$zone]" );
-                &cache_info( $zone, "faulted",      $phash->{faulted} );
                 &cache_info( $zone, "trouble",      $phash->{trouble} );
                 &cache_info( $zone, "bypassed",     $phash->{bypassed} );
                 &cache_info( $zone, "alarm_memory", $phash->{alarm_memory} );
+                &cache_info( $zone, "faulted",      $phash->{faulted} );
+
+                &send_if_dirty( $zone );
 
             }
         }
@@ -844,10 +858,14 @@ sub process_msg {
         my $partition = $phash->{hex_partition};
         if ( defined $partition ) {
             $partition = "partition" . ( ord($partition) + 1 );
-            &cache_info( $partition, "armed", $phash->{armed} );
+#print Dumper($phash);
+            &cache_info( $partition, "last_user", $phash->{last_user} );
             &cache_info( $partition, "ready", $phash->{ready} );
             &cache_info( $partition, "chime", $phash->{chime} );
             &cache_info( $partition, "stay",  $phash->{stay} );
+            &cache_info( $partition, "armed", $phash->{armed} );
+
+            &send_if_dirty( $partition );
         }
     }
     elsif ( $msg_num == 7 ) {    # partition snapshot
@@ -876,13 +894,24 @@ sub process_msg {
 
             ## skip invalid partitions.
             return unless ( $phash->{valid} );
+#rint Dumper($phash);
+            &cache_info( $pkey, "last_user", $phash->{last_user} );
             &cache_info( $pkey, "ready", $phash->{ready} );
             &cache_info( $pkey, "armed", $phash->{armed} );
             &cache_info( $pkey, "stay",  $phash->{stay} );
             &cache_info( $pkey, "chime", $phash->{chime} );
 
+            &send_if_dirty( $pkey );
+
         }
     }
+    elsif ( $msg_num == 8 ) {    # System Status Message
+        print Dumper($phash);
+        my $zone='system';
+        &cache_info( $zone, "acpoweron",      $phash->{acpoweron} );
+        &send_if_dirty( $zone );
+    }
+    print "**************************************************\n";
     ## &cache_dump();
 }
 ##########################################################
@@ -898,9 +927,13 @@ sub cache_info {
       localtime( time() );
     my $tfmt = sprintf( "%02d/%02d %02d:%02d:%02d", $mon + 1, $mday, $hour, $min, $sec );
 
+
+    print "cache info:     $key1, $key2, $data\n" if $key1 eq 1;
+
     if ( exists( $zone_hash{$key1}{$key2} ) ) {
         if ( $zone_hash{$key1}{$key2} ne $data ) {
             print "$tfmt cache_info changing [$key1],[$key2] from:", "[$zone_hash{$key1}{$key2}], to [$data]\n";
+            $zone_hash{$key1}{$key2} = $data;
             &cache_modified( "old", @_ );
         }
         else {
@@ -909,6 +942,7 @@ sub cache_info {
     }
     else {
         print "$tfmt cache_info adding [$key1],[$key2] as:", "[$data]\n";
+        $zone_hash{$key1}{$key2} = $data;
         &cache_modified( "new", @_ );
     }
     $zone_hash{$key1}{$key2} = $data;
@@ -922,27 +956,66 @@ sub cache_info {
 sub cache_modified {
     my ( $src, $key1, $key2, $data ) = @_;
 
-    #	if($src eq "old" && $key1 eq "partition1" && $key2 eq "armed"
-    #		&& $data eq "0"){
-    #		foreach my $zone (1..5,7,8){
-    #			&toggle_zone_bypass($zone);
-    #		}
-    #	}
+    # if($src eq "old" && $key1 eq "partition1" && $key2 eq "armed"
+    #   && $data eq "0"){
+    #   foreach my $zone (1..5,7,8){
+    #     &toggle_zone_bypass($zone);
+    #   }
+    # }
 
-    print "cache modified: $key1 $key2\n";
+    print "cache modified: $key1, $key2, $data\n";
 
-    if ( $key2 eq "faulted" ) {
-        &udp_send( "zone=$key1" . "&" . "$key2=$data&time=$msg_recv_time\n" );
-    }
+    #my $zh=$zone_hash{$key1};
 
-    ## and report partition transitions...
-    if ( $key2 eq "armed" ) {
-        &udp_send( "partition=$key1" . "&" . "$key2=$data&time=$msg_recv_time\n" );
+    $zone_hash{$key1}{$key2}=$data;
+
+    $zone_dirty{$key1}=1;
+
+=begin
+    if($msglabel ne '') {
+        foreach my $cmdata2 (sort keys %{$zh}){
+            print "--> cache_modified [$key1],[$cmdata2]:[$zh->{$cmdata2}]\n";
+            chomp $zh->{$cmdata2};
+            $msg .= "&$cmdata2=".$zh->{$cmdata2} if defined $zh->{$cmdata2};
+        }
+        print "==> MSG: $msg\n";
+        &udp_send( $msglabel . $msg . "&" . "time=$msg_recv_time\n" ) if $msg ne '';
     }
-    if ( $key2 eq "stay" ) {
-        &udp_send( "partition=$key1" . "&" . "$key2=$data&time=$msg_recv_time\n" );
-    }
+=cut
 }
+
+sub send_if_dirty {
+  my ( $key1 ) = @_;
+
+  if($zone_dirty{$key1}==0) {
+    print ".. Not dirty, ignoring.\n";
+  } else {
+    $zone_dirty{$key1}=0;
+
+    my $zh=$zone_hash{$key1};
+    my $msglabel='';
+    my $msg='';
+
+    if ( $key1 =~ /^(\d+)$/ ) {
+      $msglabel="zone=$key1";
+    } else {
+      $msglabel = $key1;
+      $msglabel =~ s/partition/partition=/g;
+    }
+    if($msglabel ne '') {
+      #$zh->{$key2}=$data;
+      foreach my $cmdata2 (sort keys %{$zone_hash{$key1}}){
+          print "--> cache_modified [$key1],[$cmdata2]:[$zone_hash{$key1}{$cmdata2}]\n";
+          chomp $zone_hash{$key1}{$cmdata2};
+          $msg .= "&$cmdata2=".$zone_hash{$key1}{$cmdata2} if defined $zone_hash{$key1}{$cmdata2};
+      }
+      print "==> MSG: $msg\n";
+      &udp_send( $msglabel . $msg . "&" . "time=$msg_recv_time\n" ) if $msg ne '';
+    }
+  }
+
+}
+
 
 sub udp_send {
     my ($msg) = @_;
@@ -997,9 +1070,9 @@ caddx.pl [options]
 
 =over 4
 
-=item -help	brief help message
+=item -help brief help message
 
-=item -man	full documentation
+=item -man  full documentation
 
 =item --com_port=/dev/ttySX    (default is /dev/ttyS0 or COM1)
 

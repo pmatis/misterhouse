@@ -546,6 +546,7 @@
                     push( @msgdata, [ '6:7', 'Sensor lost supervision', $datum ] );
                     $datum = $msgb[7];
                     push( @msgdata, [ '7:', 'Last user number', $datum ] );
+                    $msghash{last_user} = $datum;
                     $datum = $msgb[8];
                     push( @msgdata, [ '8:', 'Partition condition flags (5)', $datum ] );
                     $datum = &caddx::parse::getbits( $msgb[8], '0' );

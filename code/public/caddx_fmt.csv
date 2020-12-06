@@ -220,7 +220,7 @@ Bit 4,Exit error triggered
 Bit 5,Auto home inhibited
 Bit 6,Sensor low battery
 Bit 7,Sensor lost supervision
-Byte 7,Last user number
+Byte 7,Last user number {last_user}
 Byte 8,Partition condition flags (5)
 Bit 0,Re-exit active
 Bit 1,Force arm triggered by auto arm
