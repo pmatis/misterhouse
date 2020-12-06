@@ -86,10 +86,12 @@ sub poll_caddx {
 
     while ( $data = &caddx::read() ) {
         my $tag;
+        print "caddx msg: $data\n" if $main::Debug{caddx};
         my @pairs = split( /&/, $data );
         foreach my $pair (@pairs) {
             my ( $key, $val ) = split( /=/, $pair );
             $tag->{$key} = $val;
+            print "    set key $key: $val\n" if $main::Debug{caddx};
         }
 
         &process_msg($tag);
@@ -107,7 +109,7 @@ sub process_msg {
     my ($msg) = @_;
     my $obj;
     if ( $msg->{zone} ) {
-        print "zone: $msg->{zone} faulted: $msg->{faulted}"
+        print "zone: $msg->{zone} faulted: $msg->{faulted} bypassed: $msg->{bypassed}"
           if $main::Debug{caddx};
         $obj = &Sensor_Zone::get_object_by_zone( $msg->{zone} );
 
@@ -128,16 +130,19 @@ sub process_msg {
     ##   number saved as part of the zone name:-(
     ################
     if ( length( $msg->{partition} ) > 0 ) {
-        print "Partition Message: Partition $msg->{partition}: Armed $msg->{armed} : Stay $msg->{stay}"
+        print "Partition Message: Partition $msg->{partition}: Armed $msg->{armed} : Stay $msg->{stay}\n"
           if $main::Debug{caddx};
         my $prttn = $msg->{partition};
 
         # compare with null because we need to process a value of 0
-        if ( $msg->{armed} cmp "" ) {
-            print "ARMED: $msg->{partition} armed: $msg->{armed}"
+        if ( defined $msg->{armed} ) {
+            print "ARMED: $msg->{partition} armed: $msg->{armed}\n"
               if $main::Debug{caddx};
-            $obj = &Sensor_Zone::get_object_by_zone( 'armed_' . $prttn );
+            $obj = &Sensor_Zone::get_object_by_zone( 'armed_partition' . $prttn );
             return unless ($obj);    ## can't process if no object
+
+            $obj->{chime}=$msg->{chime} if $msg->{chime} ne '';
+            $obj->{last_user}=$msg->{last_user} if $msg->{last_user} ne '';
 
             if ( $msg->{armed} ) {
                 set $obj 'on';
@@ -148,11 +153,13 @@ sub process_msg {
         }
 
         # compare with null because we need to process a value of 0
-        if ( $msg->{stay} cmp "" ) {
-            print "STAY: $msg->{partition} stay: $msg->{stay}"
+        if ( defined $msg->{stay} ) {
+            print "STAY: $msg->{partition} stay: $msg->{stay}\n"
               if $main::Debug{caddx};
-            $obj = &Sensor_Zone::get_object_by_zone( 'stay_' . $prttn );
+            $obj = &Sensor_Zone::get_object_by_zone( 'stay_partition' . $prttn );
             return unless ($obj);    ## can't process if no object
+
+            $obj->{last_user}=$msg->{last_user} if $msg->{last_user} ne '';
 
             if ( $msg->{stay} ) {
                 set $obj 'on';
@@ -161,6 +168,26 @@ sub process_msg {
                 set $obj 'off';
             }
         }
+
+    }
+
+    # If it's a system message, we set other variables
+    if ( exists $msg->{system} ) {
+
+        #print "'system' message found.\n";
+
+        $obj = &Sensor_Zone::get_object_by_zone( 'system_acpoweron' );
+        return unless ($obj);    ## can't process if no object
+
+        #print "Found object\n";
+
+        if ( $msg->{acpoweron} ) {
+            set $obj 'on';
+        }
+        else {
+            set $obj 'off';
+        }
+
     }
 
 }
