@@ -11,6 +11,7 @@
 #  Latest version:
 #      http://misterhouse.net/mh/bin
 #  Change log:
+#    - 08/17/16  Updated to fix for changes in "nifty GEO::Weather module"
 #    - 01/20/99  Created.  Replaces filter_weather with the nifty Geo::Weather module
 #    - The rest of the change log is at the bottom of this file.
 #
@@ -35,7 +36,7 @@ my ($Version) = q$Revision$ =~ /: (\S+)/;    # Note: revision number is auto-upd
 
 use Getopt::Long;
 my %parms;
-if (  !&GetOptions( \%parms, "h", "help", "v", "city:s", "zone:s", "state:s", "data=s", "no_log", "nws_rwr_zone:s" )
+if (  !&GetOptions( \%parms, "h", "help", "v", "city:s", "zone:s", "state:s", "data=s", "no_log")
     or @ARGV
     or ( $parms{h} or $parms{help} ) )
 {
@@ -53,6 +54,7 @@ Usage:
 
     -city     xxx => xxx is the City  you want.
     -state    xxx => xxx is the State you want.
+    -zone     xxx => xxx is the Zone (for forecast) you want.
 
     -data     xxx => xxx is either conditions, forecast, or all.  Default is all.
 
@@ -60,7 +62,7 @@ Usage:
                      into the data_dir/web directory
 
   Example:
-    $Pgm_Name -city Rochester -state MN
+    $Pgm_Name -city Rochester -state MN -zone MPX
 
 eof
     exit;
@@ -70,6 +72,9 @@ my ( $conditions, $forecast, %data );
 my %config_parms;
 
 $parms{city}  = 'Rochester' unless $parms{city};
+#RICK 160817
+#$parms{zone}  = $parms{city} unless $parms{zone};
+$parms{zone}  = 'MPX'       unless $parms{zone};
 $parms{state} = 'MN'        unless $parms{state};
 $parms{data}  = 'all'       unless $parms{data};
 $data{conditions}++ if $parms{data} eq 'all' or $parms{data} eq 'conditions';
@@ -83,7 +88,7 @@ my $return_flag = ( $caller and $caller ne 'main' ) ? 1 : 0;
 
 #use my_lib "$Pgm_Path/../lib/site", "$Pgm_Path/../lib/fallback"; # See note in lib/mh_perl2exe.pl for lib -> my_lib explaination
 BEGIN {
-    eval "use lib '$Pgm_Path/../lib', '$Pgm_Path/../lib/site', '$Pgm_Path/../lib/fallback'";
+    eval "use lib '$Pgm_Path/../lib', '$Pgm_Path/../lib/site'";
 }                         # Use BEGIN eval to keep perl2exe happy
 
 require 'handy_utilities.pl';    # For read_mh_opts funcion
@@ -94,15 +99,19 @@ use Geo::WeatherNOAA;
 $Geo::WeatherNOAA::proxy_from_env = 1;
 
 if ( $data{conditions} ) {
-    print "\nGetting the current weather for $parms{city}, $parms{state}\n";
+    #print "\nGetting the current weather for $parms{city}, $parms{state}\n";
+    # Rick 160816
+    print "\nGetting the current weather for $parms{city}, $parms{state}, $parms{zone}\n";
     $conditions =
-      print_current( $parms{city}, $parms{state}, undef, undef, undef, $parms{nws_rwr_zone} );
+      print_current($parms{city}, $parms{state},undef,undef,undef,1);
     $conditions =~ s/&deg;F/ degrees /;
     $conditions =~ s/ in\./ inches. /g;
 }
 
 if ( $data{forecast} ) {
-    print "Getting the forecast for $parms{city}, $parms{state}\n";
+    #print "Getting the forecast for $parms{city}, $parms{state}\n";
+    # RICK 160817
+    print "Getting the forecast for $parms{city}, $parms{state}, $parms{zone}\n";
     $forecast =
       print_forecast( $parms{city}, $parms{state}, undef, undef, undef, 1 );
     $forecast =~ s/Geo::WeatherNOAA.pm .+\n//;    # Drop geo version
@@ -151,6 +160,9 @@ else {
 #	print_forecast
 
 # $Log: get_weather,v $
+# Revision 1.13  2016/08/17 23:05:00 rick steeves
+# updated for changes in GEO::WeatherNOAA
+#
 # Revision 1.12  2005/01/23 23:21:18  winter
 # *** empty log message ***
 #

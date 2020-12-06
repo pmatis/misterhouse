@@ -181,6 +181,7 @@ sub process_city_zone {
 sub get_city_zone {
     my ( $city, $state, $filename, $fileopt, $UA ) = @_;
     my $zone = &get_zone( $ZONE_SEARCH_URL, "$city, $state" );
+    return "$city, $state zone not found" unless $zone;
     my $URL =
         $URL_BASE
       . $zone

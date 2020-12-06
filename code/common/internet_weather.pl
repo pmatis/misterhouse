@@ -66,10 +66,10 @@ sub normalize_conditions {
 
 if ( said $v_get_internet_weather_data) {
     if (&net_connect_check) {
-        set $p_weather_data qq|get_weather -state $config_parms{state} -city "$config_parms{city}" -nws_rwr_zone $config_parms{nws_rwr_zone}|;
+        set $p_weather_data qq|get_weather -state $config_parms{state} -city "$config_parms{city}" -zone "$config_parms{nws_rwr_zone}"|;
         start $p_weather_data;
         $v_get_internet_weather_data->respond( "app=weather Weather data requested for $config_parms{city}, $config_parms{state}"
-              . ( ( $config_parms{zone} ) ? " Zone $config_parms{zone}" : '' ) );
+              . ( ( $config_parms{nws_rwr_zone} ) ? " Zone $config_parms{nws_rwr_zone}" : '' ) );
     }
     else {
         $v_get_internet_weather_data->respond("app=weather You must be connected to the Internet get weather data");
@@ -79,10 +79,10 @@ if ( said $v_get_internet_weather_data) {
 if ( said $v_get_internet_weather_conditions) {
     if (&net_connect_check) {
         set $p_weather_conditions
-          qq|get_weather -state $config_parms{state} -city "$config_parms{city}" -data conditions -nws_rwr_zone $config_parms{nws_rwr_zone}|;
+          qq|get_weather -state $config_parms{state} -city "$config_parms{city}" -zone "$config_parms{nws_rwr_zone}" -data conditions|;
         start $p_weather_conditions;
         $v_get_internet_weather_conditions->respond( "app=weather Weather conditions requested for $config_parms{city}, $config_parms{state}"
-              . ( ( $config_parms{zone} ) ? " Zone $config_parms{zone}" : '' ) );
+              . ( ( $config_parms{nws_rwr_zone} ) ? " Zone $config_parms{nws_rwr_zone}" : '' ) );
     }
     else {
         $v_get_internet_weather_conditions->respond("app=weather You must be connected to the Internet get weather data");
@@ -91,11 +91,12 @@ if ( said $v_get_internet_weather_conditions) {
 
 if ( said $v_get_internet_weather_forecast) {
     if (&net_connect_check) {
-        set $p_weather_forecast qq|get_weather -state $config_parms{state} -city "$config_parms{city}" -data forecast|;
-        print_log "get_weather -state $config_parms{state} -city $config_parms{city} -data forecast";
+        set $p_weather_forecast
+          qq|get_weather -v -state $config_parms{state} -city "$config_parms{city}" -zone "$config_parms{nws_rwr_zone}" -data forecast|;
+        print_log "get_weather -v -state $config_parms{state} -city $config_parms{city} -zone $config_parms{nws_rwr_zone} -data forecast";
         start $p_weather_forecast;
         $v_get_internet_weather_forecast->respond( "app=weather Weather forecast requested for $config_parms{city}, $config_parms{state}"
-              . ( ( $config_parms{zone} ) ? " Zone $config_parms{zone}" : '' ) );
+              . ( ( $config_parms{nws_rwr_zone} ) ? " Zone $config_parms{nws_rwr_zone}" : '' ) );
     }
     else {
         $v_get_internet_weather_forecast->respond("app=weather You must be connected to the Internet get weather data");
