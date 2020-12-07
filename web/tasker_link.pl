@@ -129,12 +129,12 @@ if( $Http{'User-Agent'} =~ /Tasker/i && $querystring !~ /^download=/ ) {
 	#Allow for downloading the tasker project XML file
 	if($querystring eq 'download=client') {
 	  my $date = time2str(time);
-	  
+
 	  open my $fh, '<', '../code/examples/'.$tasker_project_file;
 	  my $size_in_bytes = -s $fh;
 	  my $filedata = do { local $/; <$fh> };
 	  close $fh;
-	  
+
 	  return <<eof;
 HTTP/1.0 200
 Server: MisterHouse
@@ -149,7 +149,7 @@ eof
 	#Allow tasker to download the mhlogo.gif file for use in the scene
 	} elsif ($querystring eq 'download=logo') {
 	  my $date = time2str(time);
-	  
+
 	  open my $fh, '<', '../web/ia5/images/mhlogo.gif';
 	  my $size_in_bytes = -s $fh;
 	  my $filedata = do { local $/; <$fh> };
@@ -167,18 +167,39 @@ Cache-Control: no-cache
 $filedata
 eof
 
-	} else {
-	  return $error500 if $tlerror;
-	  my $params;
-	  $params->{'cmd'}='tasker_interface_test';
+    } else {
+        return $error500 if $tlerror;
+        my $params;
+        $params->{'cmd'}='tasker_interface_test';
 
-	  my $htmldata='This interface should be called by the tasker project for MH.';
-	  $htmldata.='<br><font color="red">An error was detected and printed to error_log.</font>' if $tlerror;
-	  $htmldata.='<br>'.tasker_call($params) if $Debug{tasker};
-	  $htmldata.='<br>Enable $Debug{tasker} for more information.' unless $Debug{tasker};
-	  
-	  $htmldata.='<h3>Download</h3><p>You may download the tasker project file from <a href=\'?download=client\'> here</a>.</p>' if -e '../code/examples/'.$tasker_project_file;
-	  
-	  return tasker_http_response($htmldata, undef, 'text/html');
-	}
+        my $htmldata='This interface should be called by the tasker project for MH.';
+        $htmldata.='<br><font color="red">An error was detected and printed to error_log.</font>' if $tlerror;
+        $htmldata.='<br>'.tasker_call($params) if $Debug{tasker};
+        $htmldata.='<br>Enable $Debug{tasker} for more information.' unless $Debug{tasker};
+
+        #TODO: Al of this could probably be much neater and/or more elegant, bit this works for now
+        $htmldata.='<script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js""></script>';
+
+        $htmldata.='<h2>Download</h2>'."\n";
+
+
+        $htmldata.=makelinks('Tasker', 'https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm', "\'https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm\'", "This app is required, as it's what runs the code on the Android client. It's responsible for sending messages to MH via the URL given to Tasker by MH.")."\n";
+        $htmldata.=makelinks('AutoRemote', 'https://play.google.com/store/apps/details?id=com.joaomgcd.autoremote', "\'https://play.google.com/store/apps/details?id=com.joaomgcd.autoremote\'", "This app receives messages from MH for processing by Tasker and the project. Prety much required to get messages to Tasker.")."\n";
+        $htmldata.=makelinks('AutoVoice (Optional)', 'https://play.google.com/store/apps/details?id=com.joaomgcd.autovoice', "\'https://play.google.com/store/apps/details?id=com.joaomgcd.autovoice\'", "If you want to be able to speak to your phone/tablet, this app allows the Google API to interpret your voice as text, then the Tasker project processes it from there.")."\n";
+        $htmldata.=makelinks('Tasker / MH Project', '?download=client', "window.location.href.split(\"?\")[0] + \'?download=client\'", "This is the code that runs inside Tasker. It's downloaded to your phone as XML and is imported to Tasker.")."\n";
+
+
+        return tasker_http_response($htmldata, undef, 'text/html');
+    }
+
+
+    my $qrcount=1;
+    sub makelinks {
+        my ($label, $link, $FullURL, $Desc) = @_;
+        my $htmldata;
+        $htmldata.='<h3><a href=\''.$link.'\'>'.$label.'</a></h3><div style="margin-left: 30px;">'.$Desc.'<div style="margin: 35px;" id="qr'.++$qrcount.'"></div></div>' if -e '../code/examples/'.$tasker_project_file;
+        $htmldata.='<script type="text/javascript">new QRCode(document.getElementById("qr'.$qrcount.'"), '.$FullURL.');</script><br>';
+        return $htmldata;
+    }
+
 }
