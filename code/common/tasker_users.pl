@@ -147,6 +147,8 @@ if($Startup || $Reload) {
   foreach my $key (split(",",$Save{tasker_forward_speech})) {
     $tasker_voice_forward_list{$key}=1;
   }
+  #Only here to make this appear on the web interface
+  $config_parms{tasker_show_help}=$config_parms{tasker_show_help};
 }
 
 Speak_pre_add_hook(\&tasker_voice_send_speech) if $Reload;

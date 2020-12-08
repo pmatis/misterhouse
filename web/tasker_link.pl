@@ -31,6 +31,7 @@ my $tasker_project_file='MH_1.1.0.prj.xml';
 ###############################################################
 my $date = time2str(time);
 my $tlerror=0;
+my $qrcount=1;
 my $error500=<<eof;
 HTTP/1.0 500 Internal Server Error
 Server: MisterHouse
@@ -126,16 +127,16 @@ if( $Http{'User-Agent'} =~ /Tasker/i && $querystring !~ /^download=/ ) {
 
 #If this is not Tasker making the call, it must be Firefox, Chrome, etc. Show some information.
 } else {
-	#Allow for downloading the tasker project XML file
-	if($querystring eq 'download=client') {
-	  my $date = time2str(time);
+  #Allow for downloading the tasker project XML file
+  if($querystring eq 'download=client') {
+    my $date = time2str(time);
 
-	  open my $fh, '<', '../code/examples/'.$tasker_project_file;
-	  my $size_in_bytes = -s $fh;
-	  my $filedata = do { local $/; <$fh> };
-	  close $fh;
+    open my $fh, '<', '../code/examples/'.$tasker_project_file;
+    my $size_in_bytes = -s $fh;
+    my $filedata = do { local $/; <$fh> };
+    close $fh;
 
-	  return <<eof;
+    return <<eof;
 HTTP/1.0 200
 Server: MisterHouse
 Date: $date
@@ -146,16 +147,16 @@ Cache-Control: no-cache
 
 $filedata
 eof
-	#Allow tasker to download the mhlogo.gif file for use in the scene
-	} elsif ($querystring eq 'download=logo') {
-	  my $date = time2str(time);
+  #Allow tasker to download the mhlogo.gif file for use in the scene
+  } elsif ($querystring eq 'download=logo') {
+    my $date = time2str(time);
 
-	  open my $fh, '<', '../web/ia5/images/mhlogo.gif';
-	  my $size_in_bytes = -s $fh;
-	  my $filedata = do { local $/; <$fh> };
-	  close $fh;
-	  print_log("Download of mhlogo.gif, size: $size_in_bytes");
-	  return <<eof;
+    open my $fh, '<', '../web/ia5/images/mhlogo.gif';
+    my $size_in_bytes = -s $fh;
+    my $filedata = do { local $/; <$fh> };
+    close $fh;
+    print_log("Download of mhlogo.gif, size: $size_in_bytes");
+    return <<eof;
 HTTP/1.0 200
 Server: MisterHouse
 Date: $date
@@ -172,34 +173,110 @@ eof
         my $params;
         $params->{'cmd'}='tasker_interface_test';
 
-        my $htmldata='This interface should be called by the tasker project for MH.';
+        my $htmldata='<img src=\'ia5/images/mhlogo.gif\'><h2>This URL should be called by the tasker project for MH.</h2>';
         $htmldata.='<br><font color="red">An error was detected and printed to error_log.</font>' if $tlerror;
         $htmldata.='<br>'.tasker_call($params) if $Debug{tasker};
-        $htmldata.='<br>Enable $Debug{tasker} for more information.' unless $Debug{tasker};
 
-        #TODO: Al of this could probably be much neater and/or more elegant, bit this works for now
-        $htmldata.='<script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js""></script>';
+        $htmldata.='<ul>';
+        $htmldata.='<li>Enable $Debug{tasker} to run a test and display more information.</li>' unless $Debug{tasker};
 
-        $htmldata.='<h2>Download</h2>'."\n";
+        if ($config_parms{tasker_show_help} != 1) {
+            $htmldata.='<li>Add tasker_show_help=1 to mh.private.ini to see download links and QR codes.</li>';
+            return tasker_http_response($htmldata, undef, 'text/html');
+        }
 
+        $htmldata.='</ul>';
 
-        $htmldata.=makelinks('Tasker', 'https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm', "\'https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm\'", "This app is required, as it's what runs the code on the Android client. It's responsible for sending messages to MH via the URL given to Tasker by MH.")."\n";
-        $htmldata.=makelinks('AutoRemote', 'https://play.google.com/store/apps/details?id=com.joaomgcd.autoremote', "\'https://play.google.com/store/apps/details?id=com.joaomgcd.autoremote\'", "This app receives messages from MH for processing by Tasker and the project. Prety much required to get messages to Tasker.")."\n";
-        $htmldata.=makelinks('AutoVoice (Optional)', 'https://play.google.com/store/apps/details?id=com.joaomgcd.autovoice', "\'https://play.google.com/store/apps/details?id=com.joaomgcd.autovoice\'", "If you want to be able to speak to your phone/tablet, this app allows the Google API to interpret your voice as text, then the Tasker project processes it from there.")."\n";
-        $htmldata.=makelinks('Tasker / MH Project', '?download=client', "window.location.href.split(\"?\")[0] + \'?download=client\'", "This is the code that runs inside Tasker. It's downloaded to your phone as XML and is imported to Tasker.")."\n";
+        #TODO: All of this could probably be much neater and/or more elegant, bit this works for now
+        $htmldata.=<<EOF;
+          <style>
+          .wrapper {
+            padding: 5px;
+            max-width: 960px;
+            width: 95%;
+            margin: 20px auto;
+          }
+          header {
+            padding: 0 15px;
+          }
+          .columns {
+            display: flex;
+            flex-flow: row wrap;
+            justify-content: center;
+            margin: 5px 0;
+          }
+          .column {
+            flex: 1;
+            border: 1px solid gray;
+            margin: 2px;
+            padding: 10px;
+            &:first-child { margin-left: 0; }
+            &:last-child { margin-right: 0; }
+          }
+          .column > p {
+            height: 100px;
+          }
+          .qr {
+            margin: auto;
+            width: 256;
+          }
+          footer {
+            padding: 0 15px;
+          }
+          </style>
 
+          <div class="wrapper">
+
+            <header>
+              <h1>Steps 4 & 5: App Downloads</h1>
+            </header>
+
+            <section class="columns">
+              <div class="column">
+                <h2>Tasker</h2>
+                <p>This app is required, as it's what runs the code on the Android client. It's responsible for sending messages to MH via the URL given to Tasker by MH.</p>
+                <div class="qr" id="qrtasker"></div>
+              </div>
+              <div class="column">
+                <h2>AutoRemote</h2>
+                <p>This app receives messages from MH for processing by Tasker and the project. Prety much required to get messages to Tasker.</p>
+                <div class="qr" id="qrautoremote"></div>
+              </div>
+              <div class="column">
+                <h2>AutoVoice (Optional)</h2>
+                <p>If you want to be able to speak to your phone/tablet, this app allows the Google API to interpret your voice as text, then the Tasker project processes it from there.</p>
+                <div class="qr" id="qrautovoice"></div>
+              </div>
+            </section>
+
+            <br><header>
+              <h1>Step 6: Install the project file</h1>
+            </header>
+            <section class="columns">
+              <div class="column">
+                <h2>Tasker Project File</h2>
+                This is the code that runs inside Tasker. It's downloaded to your phone as XML and is imported to Tasker.<br><br>
+                <div id="taskerproj"></div>
+              </div>
+            </section>
+
+            <footer>
+              <h3></h3>
+              <p>Once these are installed, continue on with step 7 in tasker_users.pl.</p>
+            </footer>
+
+          </div>
+
+          <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+          <script type="text/javascript">
+          new QRCode(document.getElementById("qrtasker"), 'https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm');
+          new QRCode(document.getElementById("qrautoremote"), 'https://play.google.com/store/apps/details?id=com.joaomgcd.autoremote');
+          new QRCode(document.getElementById("qrautovoice"), 'https://play.google.com/store/apps/details?id=com.joaomgcd.autovoice');
+          new QRCode(document.getElementById("taskerproj"), window.location.href.split(\"?\")[0] + '?download=client');
+          </script>
+EOF
 
         return tasker_http_response($htmldata, undef, 'text/html');
-    }
-
-
-    my $qrcount=1;
-    sub makelinks {
-        my ($label, $link, $FullURL, $Desc) = @_;
-        my $htmldata;
-        $htmldata.='<h3><a href=\''.$link.'\'>'.$label.'</a></h3><div style="margin-left: 30px;">'.$Desc.'<div style="margin: 35px;" id="qr'.++$qrcount.'"></div></div>' if -e '../code/examples/'.$tasker_project_file;
-        $htmldata.='<script type="text/javascript">new QRCode(document.getElementById("qr'.$qrcount.'"), '.$FullURL.');</script><br>';
-        return $htmldata;
     }
 
 }
