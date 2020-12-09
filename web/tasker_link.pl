@@ -172,9 +172,16 @@ eof
         return $error500 if $tlerror;
         my $params;
         $params->{'cmd'}='tasker_interface_test';
+        my $htmldata='<img src=\'?download=logo\'>';
+        if ($config_parms{tasker_show_help} == 1) {
 
-        my $htmldata='<img src=\'ia5/images/mhlogo.gif\'><h2>This URL should be called by the tasker project for MH.</h2>';
-        $htmldata.='<br><font color="red">An error was detected and printed to error_log.</font>' if $tlerror;
+            $htmldata.='<div class="wrapper">';
+
+            $htmldata.='<div style="float:right;" id="tasker_link">Open on your phone:<br><br></div>';
+        }
+        $htmldata.='<h2>This URL should be called by the tasker project for MH.</h2>';
+
+        $htmldata.='<font color="red">An error was detected and printed to error_log.</font>' if $tlerror;
         $htmldata.='<br>'.tasker_call($params) if $Debug{tasker};
 
         $htmldata.='<ul>';
@@ -182,54 +189,54 @@ eof
 
         if ($config_parms{tasker_show_help} != 1) {
             $htmldata.='<li>Add tasker_show_help=1 to mh.private.ini to see download links and QR codes.</li>';
+            $htmldata.='</ul>';
             return tasker_http_response($htmldata, undef, 'text/html');
         }
 
         $htmldata.='</ul>';
 
         #TODO: All of this could probably be much neater and/or more elegant, bit this works for now
-        $htmldata.=<<EOF;
-          <style>
-          .wrapper {
-            padding: 5px;
-            max-width: 960px;
-            width: 95%;
-            margin: 20px auto;
-          }
-          header {
-            padding: 0 15px;
-          }
-          .columns {
-            display: flex;
-            flex-flow: row wrap;
-            justify-content: center;
-            margin: 5px 0;
-          }
-          .column {
-            flex: 1;
-            border: 1px solid gray;
-            margin: 2px;
-            padding: 10px;
-            &:first-child { margin-left: 0; }
-            &:last-child { margin-right: 0; }
-          }
-          .column > p {
-            height: 100px;
-          }
-          .qr {
-            margin: auto;
-            width: 256;
-          }
-          footer {
-            padding: 0 15px;
-          }
-          </style>
-
-          <div class="wrapper">
-
+      $htmldata.=<<EOF;
+        <style>
+        .wrapper {
+        padding: 5px;
+        max-width: 960px;
+        width: 95%;
+        margin: 20px auto;
+        }
+        header {
+        padding: 0 15px;
+        }
+        /*div, img {border: 1px solid gray;}*/
+        .columns {
+        display: flex;
+        flex-flow: row wrap;
+        justify-content: center;
+        margin: 5px 0;
+        }
+        .column {
+        flex: 1;
+        border: 1px solid gray;
+        margin: 2px;
+        padding: 10px;
+        &:first-child { margin-left: 0; }
+        &:last-child { margin-right: 0; }
+        }
+        .column > p {
+        height: 100px;
+        }
+        .qr {
+        margin: auto;
+        width: 256;
+        }
+        footer {
+        padding: 0 15px;
+        }
+        </style>
             <header>
               <h1>Steps 4 & 5: App Downloads</h1>
             </header>
+            <div style="clear: both;"></div>
 
             <section class="columns">
               <div class="column">
@@ -269,10 +276,17 @@ eof
 
           <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
           <script type="text/javascript">
-          new QRCode(document.getElementById("qrtasker"), 'https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm');
-          new QRCode(document.getElementById("qrautoremote"), 'https://play.google.com/store/apps/details?id=com.joaomgcd.autoremote');
-          new QRCode(document.getElementById("qrautovoice"), 'https://play.google.com/store/apps/details?id=com.joaomgcd.autovoice');
-          new QRCode(document.getElementById("taskerproj"), window.location.href.split(\"?\")[0] + '?download=client');
+          new QRCode(document.getElementById("tasker_link"), {text: window.location.href.split(\"?\")[0], height: 128, width: 128});
+          new QRCode(document.getElementById("qrtasker"), {text: 'https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm', height: 256, width: 256});
+          new QRCode(document.getElementById("qrautoremote"), {text: 'https://play.google.com/store/apps/details?id=com.joaomgcd.autoremote', height: 256, width: 256});
+          new QRCode(document.getElementById("qrautovoice"), {text: 'https://play.google.com/store/apps/details?id=com.joaomgcd.autovoice', height: 256, width: 256});
+          new QRCode(document.getElementById("taskerproj"), {text: window.location.href.split(\"?\")[0] + '?download=client', height: 128, width: 128});
+
+          //document.getElementById("tasker_link").onclick = function() {window.location.href = this.getAttribute('title');};
+          document.getElementById("qrtasker").onclick = function() {window.location.href = this.getAttribute('title');};
+          document.getElementById("qrautoremote").onclick = function() {window.location.href = this.getAttribute('title');};
+          document.getElementById("qrautovoice").onclick = function() {window.location.href = this.getAttribute('title');};
+          document.getElementById("taskerproj").onclick = function() {window.location.href = this.getAttribute('title');};
           </script>
 EOF
 

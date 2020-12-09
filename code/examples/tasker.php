@@ -71,7 +71,6 @@ if ($_SERVER['HTTPS'] == "on") {
         error_log('ERROR: Received HTTP code '.$httpcode);
         exit;
     }
-    $body=rtrim($body);
     error_log("Responding with: $body");
     print $body;
 } else {

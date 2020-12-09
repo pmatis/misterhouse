@@ -30,6 +30,7 @@ sub read_table_TASKER {
 
     } elsif($type eq "TASKER_DEVICE") {
         #$TaskerInt->new_device( userid, deviceid, apikey, autovoice_apikey, ?password?);
+        $item_info[3] =~ s/^http.*\?key=//;
         $code .= '$TaskerInt -> new_device('.$item_info[0].", '".$item_info[1]."', '".$item_info[2]."', '".$item_info[3]."'";
         $code .= ", '".$item_info[4]."'" if defined $item_info[4];
         $code .= "); #noloop\n";
