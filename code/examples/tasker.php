@@ -30,6 +30,10 @@ if ($_SERVER['HTTPS'] == "on") {
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, $MHSERVERTIMEOUT);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+      'Accept: '.$_SERVER['HTTP_ACCEPT'],
+      'Accept-Encoding: '.$_SERVER['HTTP_ACCEPT_ENCODING'],
+      'Accept-Language: '.$_SERVER['HTTP_ACCEPT_LANGUAGE'],
+      'Connection: '.$_SERVER['HTTP_CONNECTION'],
       'X-REAL-IP: '.getIP(),
     ));
     curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
@@ -62,8 +66,6 @@ if ($_SERVER['HTTPS'] == "on") {
         exit;
     }
 
-    #if($httpcode == 0) {$httpcode = 200;}
-    #error_log("httpcode from MH $httpcode");
     curl_close($ch);
     if(!in_array($httpcode, array(200,403,404))) {
         header("HTTP/1.1 $httpcode OK");

@@ -234,10 +234,13 @@ eof
         }
         </style>
             <header>
-              <h1>Steps 4 & 5: App Downloads</h1>
+              <h1>Steps 1 - 3: Enable Common Code</h1>
             </header>
-            <div style="clear: both;"></div>
+            <p>Since you're here and able to read this, we'll assume that you successfully followed these steps in tasker_users.pl.</p>
 
+            <header>
+              <h1>Steps 4 - 5: App Downloads</h1>
+            </header>
             <section class="columns">
               <div class="column">
                 <h2>Tasker</h2>
