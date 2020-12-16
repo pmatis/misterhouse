@@ -32,14 +32,17 @@ my $tasker_project_file='MH_1.1.0.prj.xml';
 my $date = time2str(time);
 my $tlerror=0;
 my $qrcount=1;
+my $htmldata='<html><head><title>MrHouse Tasker Link</title></head><body><img src=\'?download=logo\'>';
 my $error500=<<eof;
 HTTP/1.0 500 Internal Server Error
 Server: MisterHouse
 Date: $date
-Content-type: text/plain
+Content-type: text/html
 Cache-Control: no-cache
 
-500 Internal Server Error
+$htmldata
+<p>ERROR: not configured.<br>See tasker_users.pl for setup instructions</p>
+</body></html>
 eof
 
 if(!main->can("tasker_call")) {
@@ -47,7 +50,7 @@ if(!main->can("tasker_call")) {
   $tlerror=1;
 }
 if(!defined($main::TaskerInt)) {
-  print_log('[TASKER_LINK] ERROR: No Tasker interface defined. Create TASKER_INTERFACE, TASKER_USER and TASKER_DEVICE entries in an MHT file.');
+  print_log('[TASKER_LINK] WARNING: No Tasker interface defined. Create TASKER_INTERFACE, TASKER_USER and TASKER_DEVICE entries in an MHT file.');
   $tlerror=1;
 }
 
@@ -172,7 +175,7 @@ eof
         return $error500 if $tlerror;
         my $params;
         $params->{'cmd'}='tasker_interface_test';
-        my $htmldata='<img src=\'?download=logo\'>';
+
         if ($config_parms{tasker_show_help} == 1) {
 
             $htmldata.='<div class="wrapper">';
@@ -199,38 +202,38 @@ eof
       $htmldata.=<<EOF;
         <style>
         .wrapper {
-        padding: 5px;
-        max-width: 960px;
-        width: 95%;
-        margin: 20px auto;
+            padding: 5px;
+            max-width: 960px;
+            width: 95%;
+            margin: 20px auto;
         }
-        header {
-        padding: 0 15px;
+            header {
+            padding: 0 15px;
         }
         /*div, img {border: 1px solid gray;}*/
         .columns {
-        display: flex;
-        flex-flow: row wrap;
-        justify-content: center;
-        margin: 5px 0;
+            display: flex;
+            flex-flow: row wrap;
+            justify-content: center;
+            margin: 5px 0;
         }
         .column {
-        flex: 1;
-        border: 1px solid gray;
-        margin: 2px;
-        padding: 10px;
-        &:first-child { margin-left: 0; }
-        &:last-child { margin-right: 0; }
+            flex: 1;
+            border: 1px solid gray;
+            margin: 2px;
+            padding: 10px;
+            &:first-child { margin-left: 0; }
+            &:last-child { margin-right: 0; }
         }
         .column > p {
-        height: 100px;
+            height: 100px;
         }
         .qr {
-        margin: auto;
-        width: 256;
+            margin: auto;
+            width: 256;
         }
         footer {
-        padding: 0 15px;
+            padding: 0 15px;
         }
         </style>
             <header>
@@ -243,17 +246,17 @@ eof
             </header>
             <section class="columns">
               <div class="column">
-                <h2>Tasker</h2>
+                <h2>Tasker</h2><h3>(\$3.49 US as of 12/2020)</h3>
                 <p>This app is required, as it's what runs the code on the Android client. It's responsible for sending messages to MH via the URL given to Tasker by MH.</p>
                 <div class="qr" id="qrtasker"></div>
               </div>
               <div class="column">
-                <h2>AutoRemote</h2>
+                <h2>AutoRemote</h2><h3>(\$3.49 US as of 12/2020)</h3>
                 <p>This app receives messages from MH for processing by Tasker and the project. Prety much required to get messages to Tasker.</p>
                 <div class="qr" id="qrautoremote"></div>
               </div>
               <div class="column">
-                <h2>AutoVoice (Optional)</h2>
+                <h2>AutoVoice (Optional)</h2><h3>(\$2.99 US as of 12/2020)</h3>
                 <p>If you want to be able to speak to your phone/tablet, this app allows the Google API to interpret your voice as text, then the Tasker project processes it from there.</p>
                 <div class="qr" id="qrautovoice"></div>
               </div>
@@ -291,6 +294,8 @@ eof
           document.getElementById("qrautovoice").onclick = function() {window.location.href = this.getAttribute('title');};
           document.getElementById("taskerproj").onclick = function() {window.location.href = this.getAttribute('title');};
           </script>
+  </body>
+</html>
 EOF
 
         return tasker_http_response($htmldata, undef, 'text/html');
