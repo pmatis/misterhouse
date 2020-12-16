@@ -9,9 +9,28 @@ INITIAL SETUP:
 
  1) Enable tasker_users.pl in common code activation
  2) Create MHT file for users, like tasker_users.mht. See below example. Reload code.
+
+################################################################################################
+# FILE: tasker_users.mht
+# Basic example
+# Create this with your own values
+################################################################################################
+# Format = A
+# -*- mode: perl-mode; -*-
+#
+# See read_table_A.pl  for definition of Format=A items
+#
+#Define the URL that clients use to access MH, through the tasker.php file. This URL is sent to
+#each the remote instances when the "sent api keys" voice command is used.
+#
+#I STRONGLY RECOMMEND USING tasker.php on nginx or Apache with HTTPS and A REAL SSL CERTIFICATE
+#TASKER_INTERFACE,    http://your.mh.server.ip:8080/tasker_link.pl  #<--Please don't use tasker_link.pl in production!
+TASKER_INTERFACE,    http://192.168.22.101:8080/tasker_link.pl
+TASKER_USER,   1,  jdoe,    John,  john
+TASKER_DEVICE, 1,  1,  place_a_key_here,    place_your_unique_autoremote_key_for_this_device_here
+
  3) Visit http://localhost:8080/tasker_link.pl with web browser to test.
-    You should this error only:
-    [TASKER_LINK] ERROR: No Tasker interface defined. Create TASKER_INTERFACE, TASKER_USER and TASKER_DEVICE entries in an MHT file.
+    You shouldn't see any errors.
 
  4) Install Tasker and Autoremote on your phone (or multiple phones, tablets).
  5) Optionally, install Autovoice if you want to be able to speak commands to your phone
@@ -25,30 +44,25 @@ INITIAL SETUP:
     https://autoremote.jaoapps.com/euslDrifkksiewDaQ
     in a web browser, THEN you'll see the real key in the URL:
     http://autoremotejoaomgcd.appspot.com/?key=REALLY_LONG_KEY_HERE
-    Take this key value, WITHOUT THE domain, WITHOUT the ?key= part, etc... ONLY the key, and
-    place it into the MHT file for this device. (place_your_unique_autoremote_key_for_this_device_here)
+    Take this key value from this URL, and place it into the MHT file for this device.
+    [place_your_unique_autoremote_key_for_this_device_here]
  8) Generate an API key that YOU DEFINE for each device that unique for each device and place
     it into the MHT file for this same device (place_a_key_here)
-    This is my exact example (I'll be destroying these keys!)
-
-TASKER_INTERFACE,    http://192.168.22.101:8080/tasker_link.pl
-TASKER_USER,   1,  jdoe,    John,  john
-TASKER_DEVICE, 1,  1,  yg.gGfd@f6gy.gfdsaf,    ca57qekUrxY:APA91bFtzrbEQ20XXRORVg5I72OHTkC7h6EdAj__CIej2H7xkOhl7Lq5BNCyRlmTVXrwN-mriQpCI3qNwiLtJkSy2pxdsAu3ni2KsFhFNocH7jv01-OOBQX_z-L9f7JJHurnxFCsHFT8
-
  9) Send URL and keys to each device with voice command 'send api keys'
-    The MHVar_apikey and MHVar_apiurl variables should now be populated in each Tasker client.
-    If not, you have to wait a couple more minutes or the Autoremote key is incorrect.
+    The MHVar_apikey and MHVar_apiurl variables should now be populated in each Tasker client
+    under the "VARS" tab.
+    If not, you have to wait a minute for delivery or the Autoremote key is incorrect.
 
 10) Add a widget to your phone. Choose Tasker, drag "Task" to your home screen, choose "MH Text Cmd"
 11) If you want to use AutoVoice, do the same thing, but choose "Autovoice", then drag "Recognize"
-    to your home screen. You'll then be asked questions. Exclude powre optionally. Set Prompt Text
-    If you choose to. I used "MH Voice Command." I suggest you check "Use Headset" too.
-    Press Checkmark.
+    to your home screen. You'll then be asked questions. Set Prompt Text if you choose to: I used
+    "MH Voice Command." Don't select "Process Natural Language." I suggest you check "Use Headset"
+    too. Press checkmark to save.
 
 
 TEST:
 
-12) Press "MH Text",type "hi", press OK. You should see a popup response from MH chose at random.
+12) Press "MH Text",type "hi", press OK. You should see a popup response from MH chosen at random.
 13) Testing Autovoice: Press "Recognize," say, "Hi." You should hear a spoken response of the
     random phrase that MH chose to respond with.
     Try "hi", "what time is it", "what's 1 + 1", etc
@@ -87,12 +101,13 @@ SECURE IT:
 
 ################################################################################################
 # FILE: tasker_users.mht
+# Example with multiple users and devices
 # Create this with your own values
 ################################################################################################
-# Format = TASKER
+# Format = A
 # -*- mode: perl-mode; -*-
 #
-# See read_table_TASKER.pl  for definition of Format=TASKER items
+# See read_table_A.pl  for definition of Format=A items
 #
 #Define the URL that clients use to access MH, through the tasker.php file. This URL is sent to
 #each the remote instances when the "sent api keys" voice command is used.
@@ -142,7 +157,7 @@ if($Startup || $Reload) {
   if( defined $TaskerInt ) {
     print_log("[TASKER] {tasker_users}: ".Dumper($TaskerInt->{tasker_users})) if $main::Debug{tasker};
   } else {
-    print_log("[TASKER] ERROR: No Tasker interface defined. Create TASKER_INTERFACE, TASKER_USER and TASKER_DEVICE entries in an MHT file. See tasker_users.pl for details.");
+    print_log("[TASKER] WARNING: No Tasker interface defined. Create TASKER_INTERFACE, TASKER_USER and TASKER_DEVICE entries in an MHT file. See tasker_users.pl for details.");
   }
   foreach my $key (split(",",$Save{tasker_forward_speech})) {
     $tasker_voice_forward_list{$key}=1;

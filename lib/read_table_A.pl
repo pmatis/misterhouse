@@ -1918,6 +1918,24 @@ sub read_table_A {
             &::MainLoop_pre_add_hook( \&Wink::GetDevicesAndStatus, 1 );
         }
     }
+    elsif($type eq "TASKER_INTERFACE") {
+        require 'Tasker_Interface.pm';
+        $code .= '$TaskerInt = new Tasker_Interface(\''.$item_info[0].'\'); #noloop'."\n";
+    }
+    elsif($type eq "TASKER_USER") {
+        require 'Tasker_Interface.pm';
+        #$TaskerInt->new_user(userid, username, firstname, nickname);
+        $code .= '$TaskerInt -> new_user('.$item_info[0].", '".$item_info[1]."', '".$item_info[2]."', '".$item_info[3]."'); #noloop\n";
+
+    }
+    elsif($type eq "TASKER_DEVICE") {
+        require 'Tasker_Interface.pm';
+        #$TaskerInt->new_device( userid, deviceid, apikey, autovoice_apikey, ?password?);
+        $item_info[3] =~ s/^http.*\?key=//;
+        $code .= '$TaskerInt -> new_device('.$item_info[0].", '".$item_info[1]."', '".$item_info[2]."', '".$item_info[3]."'";
+        $code .= ", '".$item_info[4]."'" if defined $item_info[4];
+        $code .= "); #noloop\n";
+    }
     else {
         print "\nUnrecognized .mht entry: $record\n";
         return;
